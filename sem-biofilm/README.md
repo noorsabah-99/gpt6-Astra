@@ -17,28 +17,34 @@ Coverage is rounded to a whole percent before the index is applied. Fields withi
 
 - Groups A–E: no irrigation, passive needle, ultrasonic, sonic, zirconia microparticles
 - Root thirds: coronal (10–12 mm), middle (6–8 mm), apical (1–3 mm), with 3 points per third at 1000×
-- Name files like `B07_middle_2.tif` (also `B7-M-2`, `B07_m2`, `B07 cor p1`). Sample, group, third and point fill in automatically.
+- **Score of a root third = mean of its 3 point scores**
+- Name files like `B07_middle_2.tif` (also `B7-M-2`, `B07_m2`, `B07 cor p1`). Root, group, third and point fill in automatically.
 - Tubule occlusion check images (1000×/1500×/2000×) can be marked as open, partly occluded or occluded instead of scored.
 
-## Use
+## Workflow
 
-Open `index.html` in a browser. Images are processed locally and never uploaded.
+1. **Reference photos.** Add SEM photos you have scored by eye and give each your score (1–4). You can also enter its coverage % if you measured it. Aim for 3–5 per score level from different groups and thirds, imaged with the study's SEM settings.
+2. **Learn from references.** The app measures each reference's coverage at every brightness threshold and keeps the thresholds that give every reference your score. It uses the middle of that range and reports:
+   - how many references it reads correctly,
+   - leave-one-out agreement (each reference predicted by a threshold learned without it),
+   - quadratic weighted κ.
+3. **Study photos.** They are scored automatically with the learned threshold.
+4. **Score sheet.** One row per root, with P1–P3 and the mean for each third.
+   - A point takes its score from its photo, or you can choose a score yourself. Your score always wins.
+   - Points without a photo can be typed in directly.
+   - **Copy for SPSS** or **Save as CSV** gives one row per root: point scores, third means and coverage.
+5. **Results.** Group × third summary (mean ± SD, median and IQR of third scores), every field with its status, agreement between your scores and the automatic ones, and tubule checks.
 
-1. Add the SEM TIFFs. On Thermo Fisher/FEI images, pixel size, HFW and data-bar height come from the metadata.
-2. Open *Biofilm detection* and set the brightness threshold once with **Set from this image** on a well-covered field. Check it on a clean field, then leave it unchanged for the whole study.
-3. On each field, box cracks, splitting lines, recesses and non-prepared surfaces with **Exclude area**. Click loose zirconia particles or debris to exclude them.
-4. Review borderline fields and enter an **Examiner score** where you disagree. Your score is used in every table.
-5. Copy the tables:
-   - **Groups × thirds**: median, IQR, score counts and coverage
-   - **Samples (SPSS)**: one row per root
-   - **Every field**
-   - **Examiner agreement**: exact %, Cohen's κ, linear and quadratic weighted κ
-   - **Methods text**
+## Saving
+
+The published page saves your scores, reference photos, learned threshold, settings and every photo's result with the page. Opened as a local file, it saves in that browser only. Study photos themselves are not stored, only their results; add a photo again to view or re-score it.
 
 ## Validation and limits
 
-- **Synthetic validation:** on 24 synthetic dentine fields (0–89% coverage) the automatic score matched the true score in 24/24, with a mean coverage error of 1.4 points. Synthetic images are easier than real micrographs.
-- **Constant imaging conditions:** the fixed brightness threshold relies on the same kV, detector, brightness and contrast for every field. Turn off automatic brightness/contrast while imaging.
-- **Before reporting:** score a subset of real fields by eye (blinded to group), enter them as examiner scores, and report the weighted kappa.
-- **Point aggregation:** the protocol does not say how the 3 points of a third are combined. Pick the rule (median, score of mean coverage, or highest) under *Biofilm detection* and report it.
+- **Synthetic tests:**
+  - On 24 synthetic dentine fields (0–89% coverage) the automatic score matched the true score in 24/24, with a mean coverage error of 1.4 points.
+  - In an end-to-end test with 8 synthetic references, learning gave 8/8 correct (8/8 leave-one-out). 9 of 10 new photos got the true score; the miss was 4.6% true vs 4.4% read, at the 5% cut-off, and was flagged as borderline.
+  - Synthetic images are easier than real micrographs.
+- **Constant imaging conditions:** the learned threshold is a brightness level. It holds only if every field is imaged with the same kV, detector, brightness and contrast; turn off automatic brightness/contrast.
+- **Before reporting:** type your own score on a blinded subset of study photos and report the weighted kappa from the Examiner agreement tab.
 - **TIFF decoder:** loads from a CDN, so TIFFs need an internet connection. PNG and JPEG work offline.
