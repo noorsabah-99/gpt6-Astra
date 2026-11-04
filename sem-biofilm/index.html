@@ -1,0 +1,1185 @@
+<title>Biofilm SEM Reader</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+<style>
+/* Layout: instrument console. Dark "SEM screen" stage on the left, parameter stack on the right, figures and batch table below. */
+:root {
+  --bg: #e9ecef;
+  --panel: #f7f8f9;
+  --raised: #ffffff;
+  --ink: #161a1e;
+  --muted: #59636d;
+  --line: #cfd5db;
+  --accent: #b86e00;
+  --accent-ink: #ffffff;
+  --stage: #0b0d0f;
+  --stage-ink: #c9d0d6;
+  --good: #2f7d4f;
+  --warn: #a35a00;
+  --bad: #b3261e;
+  --c-single: #ffb02e;
+  --c-agg: #4aa8ff;
+  --c-excl: #ff5a5a;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121518; --panel: #191d21; --raised: #1f2429; --ink: #e4e8ec; --muted: #9aa5af;
+    --line: #2e353c; --accent: #f2a531; --accent-ink: #1a1206; --stage: #050607; --stage-ink: #c9d0d6;
+    --good: #5cc286; --warn: #f0a548; --bad: #ff7b72; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121518; --panel: #191d21; --raised: #1f2429; --ink: #e4e8ec; --muted: #9aa5af;
+  --line: #2e353c; --accent: #f2a531; --accent-ink: #1a1206; --stage: #050607; --stage-ink: #c9d0d6;
+  --good: #5cc286; --warn: #f0a548; --bad: #ff7b72; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 20px; font-weight: 600; }
+h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+button, .btn, select, input { font: inherit; color: inherit; }
+button, .btn {
+  border: 1px solid var(--line); background: var(--raised); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+button:hover, .btn:hover { border-color: var(--muted); }
+button:focus-visible, .btn:focus-within, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.primary:hover { filter: brightness(1.06); border-color: var(--accent); }
+button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+input[type=number], input[type=text], select {
+  background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0;
+}
+input[type=range] { accent-color: var(--accent); width: 100%; }
+input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+header.top p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.thumb {
+  flex: 0 0 auto; width: 150px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  padding: 6px; display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer;
+}
+.thumb.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.thumb canvas { width: 100%; height: 84px; object-fit: cover; border-radius: 4px; background: var(--stage); display: block; }
+.thumb .tn { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thumb .tg { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 960px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.viewer { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--raised); }
+.seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.stage {
+  position: relative; background: var(--stage); border-radius: 10px; overflow: auto; max-height: 78vh; min-height: 220px;
+  border: 1px solid var(--line);
+}
+.cbox { position: relative; width: 100%; line-height: 0; }
+.cbox canvas { display: block; width: 100%; height: auto; image-rendering: auto; }
+.cbox.native canvas { image-rendering: pixelated; }
+#cOver, #cUI { position: absolute; inset: 0; width: 100%; height: 100%; }
+#cUI { cursor: crosshair; }
+.tip {
+  position: absolute; pointer-events: none; z-index: 3; background: rgba(10,12,14,0.92); color: #e8edf1;
+  border: 1px solid #3a434b; border-radius: 6px; padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  font-family: var(--font-mono); white-space: nowrap;
+}
+.busy {
+  position: absolute; top: 10px; right: 10px; z-index: 4; background: rgba(10,12,14,0.85); color: #ffd28a;
+  font-family: var(--font-mono); font-size: 12px; padding: 4px 8px; border-radius: 4px;
+}
+.drop {
+  position: absolute; inset: 8px; border: 2px dashed var(--accent); border-radius: 8px; display: grid; place-items: center;
+  color: #ffd28a; font-family: var(--font-display); font-size: 22px; background: rgba(0,0,0,0.6); z-index: 5;
+}
+.empty { color: var(--stage-ink); padding: 60px 20px; text-align: center; line-height: 1.6; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); align-items: center; }
+.sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.hint { font-size: 12px; color: var(--muted); }
+
+.side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.summary { background: var(--raised); }
+.stagechip {
+  display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 16px;
+}
+.stagechip i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.bigs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.big { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.big b { font-family: var(--font-mono); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.big span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+dl.kv dt { color: var(--muted); }
+dl.kv dd { margin: 0; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.caveat { font-size: 11.5px; color: var(--muted); margin: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > label { flex: 1 1 auto; }
+.field { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+.field label { font-size: 13px; }
+.field output { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: right; min-width: 56px; }
+.field input[type=range] { grid-column: 1 / -1; }
+.field small { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.src { font-size: 12px; color: var(--muted); }
+.src b { color: var(--ink); font-weight: 500; }
+.calbox { border: 1px dashed var(--accent); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+input.w-num { width: 110px; }
+
+.charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 960px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+figure canvas { width: 100%; height: 200px; display: block; }
+figcaption { font-size: 12px; color: var(--muted); }
+
+.batch { display: flex; flex-direction: column; gap: 10px; }
+.batch-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; background: var(--raised); position: sticky; top: 0; }
+td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+td:first-child, td:nth-child(2) { font-family: var(--font-body); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--raised); }
+tbody tr.active { box-shadow: inset 3px 0 0 var(--accent); }
+tbody tr:last-child td { border-bottom: 0; }
+textarea#copybuf { width: 100%; height: 120px; font-family: var(--font-mono); font-size: 12px; background: var(--raised); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+.notes { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.notes p, .notes li { max-width: 80ch; color: var(--muted); margin: 0; }
+.notes ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; max-width: calc(100% - 32px);
+}
+.err { color: var(--bad); font-size: 12.5px; }
+@media (max-width: 520px) {
+  .bigs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  h1 { font-size: 24px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Biofilm SEM Reader</h1>
+      <p>Segments bacterial cells in scanning electron micrographs and reports surface coverage, cell counts, cell dimensions, aggregation and a biofilm-stage estimate. Images stay in your browser.</p>
+    </div>
+    <div class="actions">
+      <label class="btn primary" for="file">Add SEM images</label>
+      <input type="file" id="file" multiple accept="image/*,.tif,.tiff,.txt" hidden>
+      <button id="sampleBtn" type="button">Reload examples</button>
+    </div>
+  </header>
+
+  <section class="strip" id="strip" aria-label="Loaded images"></section>
+
+  <main class="main">
+    <section class="viewer">
+      <div class="toolbar">
+        <div class="seg" role="tablist" id="viewSeg">
+          <button type="button" data-view="overlay" class="on">Overlay</button>
+          <button type="button" data-view="original">Original</button>
+          <button type="button" data-view="processed">Processed</button>
+          <button type="button" data-view="mask">Mask</button>
+        </div>
+        <div class="tools">
+          <button type="button" id="calBtn">Measure scale bar</button>
+          <button type="button" id="zoomBtn">Actual pixels</button>
+        </div>
+      </div>
+      <div class="stage" id="stage">
+        <div class="cbox" id="cbox">
+          <canvas id="cBase"></canvas><canvas id="cOver"></canvas><canvas id="cUI"></canvas>
+        </div>
+        <div class="empty" id="emptyMsg" hidden>Add SEM images (TIFF, PNG or JPEG) with the button above, or drop them here.<br>Instrument TIFFs from Thermo/FEI, Zeiss and Tescan are calibrated automatically.</div>
+        <div class="tip" id="tip" hidden></div>
+        <div class="busy" id="busy" hidden>Analyzing…</div>
+        <div class="drop" id="drop" hidden>Drop SEM images</div>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--c-single)"></i>Single cell</span>
+        <span><i class="sw" style="background:var(--c-agg)"></i>Aggregate</span>
+        <span><i class="sw" style="background:var(--c-excl)"></i>Excluded by you</span>
+        <span><i class="sw" style="background:#555"></i>Data bar (not analyzed)</span>
+        <span class="hint">Click an object to exclude debris or crystals. Click it again to restore.</span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel summary" id="summary" aria-live="polite"></section>
+
+      <section class="panel">
+        <h3>Sample</h3>
+        <div class="row">
+          <span class="src" id="imgName" style="flex:1;min-width:0;overflow-wrap:anywhere"></span>
+          <button type="button" id="removeBtn">Remove</button>
+        </div>
+        <div class="field">
+          <label for="group">Group / condition</label><span></span>
+          <input type="text" id="group" list="groupList" placeholder="e.g. Control, 24 h, Treated" style="grid-column:1/-1">
+          <datalist id="groupList"></datalist>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>Calibration</h3>
+        <div class="row">
+          <label for="nm">Pixel size</label>
+          <input type="number" id="nm" class="w-num" min="0" step="any" placeholder="unknown"> <span class="mono">nm/px</span>
+        </div>
+        <div class="src" id="calSrc"></div>
+        <div class="calbox" id="calBox" hidden>
+          <div class="hint" id="calHint">Drag along the scale bar in the image. The line snaps horizontal; hold Shift to draw at an angle.</div>
+          <div class="row">
+            <label for="barLen">Bar length</label>
+            <input type="number" id="barLen" class="w-num" min="0" step="any" value="2">
+            <select id="barUnit" aria-label="Bar unit"><option value="1000">µm</option><option value="1">nm</option></select>
+          </div>
+          <div class="row"><button type="button" class="primary" id="calApply" disabled>Apply</button><button type="button" id="calCancel">Cancel</button></div>
+        </div>
+        <div class="row">
+          <label for="excl">Data bar height</label>
+          <input type="number" id="excl" class="w-num" min="0" step="1"> <span class="mono">px</span>
+          <button type="button" id="exclAuto">Detect</button>
+        </div>
+        <button type="button" id="calAll">Use this pixel size for all images</button>
+      </section>
+
+      <section class="panel">
+        <h3>Segmentation · applies to all images</h3>
+        <div class="row">
+          <label for="sPol">Cells appear</label>
+          <select id="sPol"><option value="bright">Brighter than substrate</option><option value="dark">Darker than substrate</option></select>
+        </div>
+        <div class="field">
+          <label for="sBg">Background flattening radius</label><output id="oBg"></output>
+          <input type="range" id="sBg" min="0" max="250" step="5">
+          <small>Removes charging gradients. Keep it larger than one cell; 0 turns it off.</small>
+        </div>
+        <div class="field">
+          <label for="sSig">Noise smoothing (σ)</label><output id="oSig"></output>
+          <input type="range" id="sSig" min="0" max="4" step="0.1">
+        </div>
+        <div class="field">
+          <label for="sOff">Threshold offset from Otsu</label><output id="oOff"></output>
+          <input type="range" id="sOff" min="-80" max="80" step="1">
+        </div>
+        <div class="row">
+          <label for="sOpen">Morphological opening</label>
+          <select id="sOpen"><option value="0">Off</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option></select>
+        </div>
+        <div class="row">
+          <label for="sMin">Ignore objects smaller than</label>
+          <input type="number" id="sMin" class="w-num" min="0" step="1"> <span class="mono">px²</span>
+        </div>
+        <label class="check"><input type="checkbox" id="sFill"> Fill small holes inside cells</label>
+        <label class="check"><input type="checkbox" id="sSplit"> Split touching cells (distance watershed)</label>
+        <div class="field">
+          <label for="sH">Split sensitivity (h-maxima)</label><output id="oH"></output>
+          <input type="range" id="sH" min="0.5" max="6" step="0.25">
+          <small>Lower splits more aggressively. Raise it if rods are cut into pieces.</small>
+        </div>
+        <label class="check"><input type="checkbox" id="sEdge"> Leave edge-touching cells out of size statistics</label>
+        <div class="row">
+          <label for="sRef">Single-cell area</label>
+          <input type="number" id="sRef" class="w-num" min="0" step="any" placeholder="auto"> <span class="mono">µm²</span>
+        </div>
+        <p class="caveat">Used to convert aggregates into cell counts. Leave blank to use the median object area.</p>
+      </section>
+    </aside>
+  </main>
+
+  <section class="charts">
+    <figure><canvas id="chArea"></canvas><figcaption id="capArea">Object area distribution for the selected image. Dashed line marks the single-cell reference area.</figcaption></figure>
+    <figure><canvas id="chAR"></canvas><figcaption>Aspect ratio of single cells (ellipse fit). Bands mark coccoid (&lt;1.4), rod (1.4–3.5) and filamentous (&gt;3.5).</figcaption></figure>
+    <figure><canvas id="chGroup"></canvas><figcaption>Surface coverage per image, grouped by condition. Bars show the group mean.</figcaption></figure>
+  </section>
+
+  <section class="batch">
+    <div class="batch-head">
+      <h2>Batch results</h2>
+      <div class="actions">
+        <button type="button" id="copyImgs">Copy image table</button>
+        <button type="button" id="copyGroups">Copy group summary</button>
+        <button type="button" id="copyObjs">Copy objects (this image)</button>
+        <button type="button" id="copyMethods">Copy methods text</button>
+      </div>
+    </div>
+    <div class="tablebox"><table id="imgTable"></table></div>
+    <div class="tablebox"><table id="grpTable"></table></div>
+    <p class="hint">Tables copy as tab-separated text that pastes straight into Excel, Sheets or Prism.</p>
+    <textarea id="copybuf" hidden readonly aria-label="Copied text"></textarea>
+  </section>
+
+  <section class="notes">
+    <h3>How the reading is made</h3>
+    <ol>
+      <li>The instrument data bar is cropped and pixel size is read from TIFF metadata (Thermo/FEI <span class="mono">PixelWidth</span>, Zeiss <span class="mono">Image Pixel Size</span>, Tescan <span class="mono">PixelSizeX</span>) or from a Hitachi/JEOL sidecar <span class="mono">.txt</span> dropped with the image. Otherwise measure the scale bar.</li>
+      <li>Uneven brightness from charging is removed with a morphological top-hat (grey opening, then smoothing), followed by Gaussian noise smoothing.</li>
+      <li>Cells are separated from the substrate with Otsu's threshold plus your offset, cleaned by binary opening, hole filling and a minimum-size filter.</li>
+      <li>Touching cells are split by a marker-controlled watershed on the Euclidean distance map, seeded by h-maxima.</li>
+      <li>Each object is measured by area and an ellipse fit (length, width, aspect ratio). Objects larger than 1.8× the single-cell area count as aggregates and contribute area ÷ single-cell area cells.</li>
+      <li>Spatial pattern uses the Clark–Evans index R on object centroids: R &lt; 1 clustered, ≈ 1 random, &gt; 1 evenly spread. No edge correction is applied.</li>
+    </ol>
+    <p>The biofilm stage is a heuristic from 2-D coverage and aggregation only. SEM shows the top surface, and dehydration shrinks cells and collapses EPS, so confirm thickness and matrix with cross-sections, CLSM or crystal-violet staining. The two images loaded at start are synthetic examples, not measurements.</p>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+// ---------- state ----------
+const DEFAULTS = { pol: "bright", bg: 40, sig: 1.2, off: 0, open: 1, min: 60, fill: true, split: true, h: 1.5, edge: true, ref: "" };
+const S = Object.assign({}, DEFAULTS);
+const state = { images: [], cur: -1, view: "overlay", native: false, cal: null, hover: 0, queue: [], running: false, nextId: 1 };
+const $ = (s) => document.querySelector(s);
+const PI4 = Math.PI / 4;
+
+// ---------- image processing primitives ----------
+function boxesForGauss(sigma, n) {
+  const wIdeal = Math.sqrt((12 * sigma * sigma) / n + 1);
+  let wl = Math.floor(wIdeal); if (wl % 2 === 0) wl--;
+  const wu = wl + 2;
+  const mIdeal = (12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4);
+  const m = Math.round(mIdeal);
+  const r = [];
+  for (let i = 0; i < n; i++) r.push(((i < m ? wl : wu) - 1) / 2);
+  return r;
+}
+function boxH(src, dst, w, h, r) {
+  const inv = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {
+    const row = y * w; let sum = 0;
+    for (let k = -r; k <= r; k++) sum += src[row + Math.min(w - 1, Math.max(0, k))];
+    for (let x = 0; x < w; x++) {
+      dst[row + x] = sum * inv;
+      sum += src[row + Math.min(w - 1, x + r + 1)] - src[row + Math.max(0, x - r)];
+    }
+  }
+}
+function boxV(src, dst, w, h, r) {
+  const inv = 1 / (2 * r + 1);
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let k = -r; k <= r; k++) sum += src[Math.min(h - 1, Math.max(0, k)) * w + x];
+    for (let y = 0; y < h; y++) {
+      dst[y * w + x] = sum * inv;
+      sum += src[Math.min(h - 1, y + r + 1) * w + x] - src[Math.max(0, y - r) * w + x];
+    }
+  }
+}
+function boxBlur(src, w, h, r) {
+  if (r < 1) return src.slice();
+  const a = new Float32Array(src.length), b = new Float32Array(src.length);
+  boxH(src, a, w, h, r); boxV(a, b, w, h, r); return b;
+}
+function gaussBlur(src, w, h, sigma) {
+  if (sigma < 0.35) return src.slice();
+  let a = src.slice(); const b = new Float32Array(src.length);
+  for (const r of boxesForGauss(sigma, 3)) { if (r < 1) continue; boxH(a, b, w, h, r); boxV(b, a, w, h, r); }
+  return a;
+}
+function slide1D(src, out, n, r, isMax, dq) {
+  let head = 0, tail = 0;
+  for (let i = 0; i < n + r; i++) {
+    if (i < n) {
+      const v = src[i];
+      while (tail > head && (isMax ? src[dq[tail - 1]] <= v : src[dq[tail - 1]] >= v)) tail--;
+      dq[tail++] = i;
+    }
+    const o = i - r;
+    if (o >= 0) { while (dq[head] < o - r) head++; out[o] = src[dq[head]]; }
+  }
+}
+function rankFilter(src, w, h, r, isMax) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h);
+  const n = Math.max(w, h), li = new Float32Array(n), lo = new Float32Array(n), dq = new Int32Array(n + 1);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) li[x] = src[y * w + x];
+    slide1D(li, lo, w, r, isMax, dq);
+    for (let x = 0; x < w; x++) tmp[y * w + x] = lo[x];
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) li[y] = tmp[y * w + x];
+    slide1D(li, lo, h, r, isMax, dq);
+    for (let y = 0; y < h; y++) out[y * w + x] = lo[y];
+  }
+  return out;
+}
+function otsu(hist, total) {
+  let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, best = -1, thr = 127;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += t * hist[t];
+    const d = sumB / wB - (sum - sumB) / wF, between = wB * wF * d * d;
+    if (between > best) { best = between; thr = t; }
+  }
+  return thr;
+}
+function morph(m, w, h, erodeMode) {
+  const out = new Uint8Array(m.length);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    if (erodeMode) {
+      if (!m[i]) continue;
+      let keep = 1;
+      for (let dy = -1; dy <= 1 && keep; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue; if (!m[yy * w + xx]) { keep = 0; break; } } }
+      out[i] = keep;
+    } else {
+      if (m[i]) { out[i] = 1; continue; }
+      let any = 0;
+      for (let dy = -1; dy <= 1 && !any; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue; if (m[yy * w + xx]) { any = 1; break; } } }
+      out[i] = any;
+    }
+  }
+  return out;
+}
+function labelCC(m, w, h, start) {
+  const lab = new Int32Array(w * h), stack = new Int32Array(w * h);
+  let n = 0;
+  for (let i = 0; i < m.length; i++) {
+    if (!m[i] || lab[i]) continue;
+    n++; let sp = 0; stack[sp++] = i; lab[i] = n;
+    while (sp) {
+      const p = stack[--sp], x = p % w, y = (p - x) / w;
+      for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
+        for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue;
+          const q = yy * w + xx; if (m[q] && !lab[q]) { lab[q] = n; stack[sp++] = q; } } }
+    }
+  }
+  return { lab, n };
+}
+function areasOf(lab, n) { const a = new Int32Array(n + 1); for (let i = 0; i < lab.length; i++) a[lab[i]]++; return a; }
+function edt(m, w, h) {
+  const INF = 1e20, n = Math.max(w, h);
+  const g = new Float64Array(w * h), f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
+  for (let i = 0; i < m.length; i++) g[i] = m[i] ? INF : 0;
+  const dt = (len) => {
+    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
+    for (let q = 1; q < len; q++) {
+      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
+      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
+      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
+    }
+    k = 0;
+    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
+  };
+  for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = g[y * w + x]; dt(h); for (let y = 0; y < h; y++) g[y * w + x] = d[y]; }
+  for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = g[y * w + x]; dt(w); for (let x = 0; x < w; x++) g[y * w + x] = d[x]; }
+  const out = new Float32Array(w * h), cap = w + h;
+  for (let i = 0; i < out.length; i++) out[i] = g[i] > 1e18 ? cap : Math.sqrt(g[i]);
+  return out;
+}
+// Morphological reconstruction by dilation (Vincent's hybrid algorithm, 8-connected)
+function reconstruct(J, I, w, h) {
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; let m = J[i];
+    if (x > 0) m = Math.max(m, J[i - 1]);
+    if (y > 0) { const u = i - w; m = Math.max(m, J[u]); if (x > 0) m = Math.max(m, J[u - 1]); if (x < w - 1) m = Math.max(m, J[u + 1]); }
+    J[i] = Math.min(m, I[i]);
+  }
+  const fifo = [];
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    const i = y * w + x; let m = J[i];
+    const nb = [];
+    if (x < w - 1) nb.push(i + 1);
+    if (y < h - 1) { const dn = i + w; nb.push(dn); if (x < w - 1) nb.push(dn + 1); if (x > 0) nb.push(dn - 1); }
+    for (const q of nb) m = Math.max(m, J[q]);
+    J[i] = Math.min(m, I[i]);
+    for (const q of nb) if (J[q] < J[i] && J[q] < I[q]) { fifo.push(i); break; }
+  }
+  let head = 0;
+  while (head < fifo.length) {
+    const p = fifo[head++], x = p % w, y = (p - x) / w;
+    for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx; if (xx < 0 || xx >= w) continue;
+        const q = yy * w + xx;
+        if (J[q] < J[p] && I[q] !== J[q]) { J[q] = Math.min(J[p], I[q]); fifo.push(q); } } }
+    if (head > 4e6) { fifo.splice(0, head); head = 0; }
+  }
+  return J;
+}
+function watershed(mask, w, h, hval) {
+  // Smooth the distance map so digital zig-zag along rod ridges does not create extra seeds
+  const raw = edt(mask, w, h), dist = gaussBlur(raw, w, h, 1);
+  for (let i = 0; i < dist.length; i++) if (!mask[i]) dist[i] = 0;
+  const J = new Float32Array(dist.length);
+  for (let i = 0; i < J.length; i++) J[i] = dist[i] - hval;
+  reconstruct(J, dist, w, h);
+  const seeds = new Uint8Array(mask.length);
+  for (let i = 0; i < seeds.length; i++) seeds[i] = mask[i] && dist[i] - J[i] >= hval * 0.5 ? 1 : 0;
+  const mk = labelCC(seeds, w, h);
+  const lab = mk.lab;
+  let cap = 0; for (let i = 0; i < mask.length; i++) if (mask[i]) cap++;
+  const keys = new Float32Array(cap + 1), vals = new Int32Array(cap + 1); let size = 0;
+  const push = (k, v) => { let i = size++; while (i > 0) { const p = (i - 1) >> 1; if (keys[p] >= k) break; keys[i] = keys[p]; vals[i] = vals[p]; i = p; } keys[i] = k; vals[i] = v; };
+  const pop = () => { const top = vals[0]; size--; const k = keys[size], vv = vals[size]; let i = 0;
+    for (;;) { const l = 2 * i + 1; if (l >= size) break; const r = l + 1; const c = r < size && keys[r] > keys[l] ? r : l; if (keys[c] <= k) break; keys[i] = keys[c]; vals[i] = vals[c]; i = c; }
+    keys[i] = k; vals[i] = vv; return top; };
+  for (let i = 0; i < lab.length; i++) if (lab[i]) push(dist[i], i);
+  while (size) {
+    const p = pop(), L = lab[p], x = p % w, y = (p - x) / w;
+    for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
+      for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue;
+        const q = yy * w + xx; if (mask[q] && !lab[q]) { lab[q] = L; push(dist[q], q); } } }
+  }
+  let n = mk.n;
+  const left = new Uint8Array(mask.length); let anyLeft = false;
+  for (let i = 0; i < left.length; i++) if (mask[i] && !lab[i]) { left[i] = 1; anyLeft = true; }
+  if (anyLeft) { const extra = labelCC(left, w, h); for (let i = 0; i < lab.length; i++) if (extra.lab[i]) lab[i] = n + extra.lab[i]; n += extra.n; }
+  return { lab, n };
+}
+
+// ---------- analysis ----------
+function analyze(img) {
+  const W = img.w, H = Math.max(8, img.h - img.excl), N = W * H;
+  let g = new Float32Array(N);
+  for (let i = 0; i < N; i++) g[i] = S.pol === "bright" ? img.gray[i] : 255 - img.gray[i];
+  if (S.bg > 0) {
+    const r = Math.max(1, Math.round(S.bg));
+    const bg = boxBlur(rankFilter(rankFilter(g, W, H, r, false), W, H, r, true), W, H, Math.max(1, r >> 1));
+    for (let i = 0; i < N; i++) g[i] -= bg[i];
+  }
+  g = gaussBlur(g, W, H, S.sig);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = 0; i < N; i++) { if (g[i] < lo) lo = g[i]; if (g[i] > hi) hi = g[i]; }
+  const B = 2048, hb = new Int32Array(B), span = hi - lo || 1;
+  for (let i = 0; i < N; i++) hb[Math.min(B - 1, ((g[i] - lo) / span * (B - 1)) | 0)]++;
+  let acc = 0, p0 = 0, p1 = B - 1;
+  for (let b = 0; b < B; b++) { acc += hb[b]; if (acc >= N * 0.005) { p0 = b; break; } }
+  acc = 0; for (let b = B - 1; b >= 0; b--) { acc += hb[b]; if (acc >= N * 0.005) { p1 = b; break; } }
+  const vlo = lo + (p0 / (B - 1)) * span, vhi = lo + (p1 / (B - 1)) * span, vs = 255 / ((vhi - vlo) || 1);
+  const norm = new Uint8ClampedArray(N), hist = new Int32Array(256);
+  for (let i = 0; i < N; i++) { const v = (g[i] - vlo) * vs; norm[i] = v; hist[norm[i]]++; }
+  const otsuT = otsu(hist, N), thr = Math.max(0, Math.min(254, otsuT + S.off));
+  let mask = new Uint8Array(N);
+  for (let i = 0; i < N; i++) mask[i] = norm[i] > thr ? 1 : 0;
+  for (let k = 0; k < S.open; k++) mask = morph(mask, W, H, true);
+  for (let k = 0; k < S.open; k++) mask = morph(mask, W, H, false);
+  if (S.fill) {
+    const inv = new Uint8Array(N); for (let i = 0; i < N; i++) inv[i] = mask[i] ? 0 : 1;
+    const bl = labelCC(inv, W, H), ba = areasOf(bl.lab, bl.n), touch = new Uint8Array(bl.n + 1);
+    for (let x = 0; x < W; x++) { touch[bl.lab[x]] = 1; touch[bl.lab[(H - 1) * W + x]] = 1; }
+    for (let y = 0; y < H; y++) { touch[bl.lab[y * W]] = 1; touch[bl.lab[y * W + W - 1]] = 1; }
+    const maxHole = Math.max(S.min, 20);
+    for (let i = 0; i < N; i++) { const L = bl.lab[i]; if (L && !touch[L] && ba[L] <= maxHole) mask[i] = 1; }
+  }
+  { const cc = labelCC(mask, W, H), a = areasOf(cc.lab, cc.n);
+    for (let i = 0; i < N; i++) if (cc.lab[i] && a[cc.lab[i]] < S.min) mask[i] = 0; }
+  const seg = S.split ? watershed(mask, W, H, S.h) : labelCC(mask, W, H);
+  const lab = seg.lab, n = seg.n;
+
+  const area = new Float64Array(n + 1), sx = new Float64Array(n + 1), sy = new Float64Array(n + 1),
+        sxx = new Float64Array(n + 1), syy = new Float64Array(n + 1), sxy = new Float64Array(n + 1),
+        edges = new Int32Array(n + 1), border = new Uint8Array(n + 1);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, L = lab[i]; if (!L) continue;
+    area[L]++; sx[L] += x; sy[L] += y; sxx[L] += x * x; syy[L] += y * y; sxy[L] += x * y;
+    if (x === 0 || y === 0 || x === W - 1 || y === H - 1) border[L] = 1;
+    if (x === 0 || lab[i - 1] !== L) edges[L]++;
+    if (x === W - 1 || lab[i + 1] !== L) edges[L]++;
+    if (y === 0 || lab[i - W] !== L) edges[L]++;
+    if (y === H - 1 || lab[i + W] !== L) edges[L]++;
+  }
+  const exclL = new Set();
+  for (const p of img.excluded) { const xi = Math.round(p.x), yi = Math.round(p.y); if (xi >= 0 && yi >= 0 && xi < W && yi < H && lab[yi * W + xi]) exclL.add(lab[yi * W + xi]); }
+
+  const um = img.nm ? img.nm / 1000 : null, a2 = um ? um * um : 1;
+  const objs = [], byL = new Array(n + 1);
+  for (let L = 1; L <= n; L++) {
+    const a = area[L]; if (a < S.min * 0.5) continue;
+    const mx = sx[L] / a, my = sy[L] / a;
+    const cxx = sxx[L] / a - mx * mx + 1 / 12, cyy = syy[L] / a - my * my + 1 / 12, cxy = sxy[L] / a - mx * my;
+    const tr = (cxx + cyy) / 2, dd = Math.sqrt(((cxx - cyy) / 2) ** 2 + cxy * cxy);
+    const major = 4 * Math.sqrt(tr + dd), minor = 4 * Math.sqrt(Math.max(tr - dd, 1e-6));
+    const per = edges[L] * PI4;
+    const o = { L, id: 0, area: a, cx: mx, cy: my, major, minor, ar: major / minor, angle: 0.5 * Math.atan2(2 * cxy, cxx - cyy),
+                circ: Math.min(1, (4 * Math.PI * a) / (per * per)), border: !!border[L], excluded: exclL.has(L) };
+    objs.push(o); byL[L] = o;
+  }
+  objs.forEach((o, i) => (o.id = i + 1));
+  const live = objs.filter((o) => !o.excluded);
+  const forSize = live.filter((o) => !(S.edge && o.border));
+  const refUm = parseFloat(S.ref);
+  let refPx;
+  if (refUm > 0 && um) refPx = refUm / a2;
+  else { const s = forSize.map((o) => o.area).sort((x, y) => x - y); refPx = s.length ? s[Math.floor(s.length / 2)] : S.min; }
+  let est = 0, cellsInAgg = 0, largest = 0;
+  const morphCount = { coccoid: 0, rod: 0, filament: 0 };
+  for (const o of objs) {
+    o.type = o.area > 1.8 * refPx ? "aggregate" : "single";
+    o.cells = o.type === "aggregate" ? Math.max(2, Math.round(o.area / refPx)) : 1;
+    o.morph = o.type === "single" ? (o.ar < 1.4 ? "coccoid" : o.ar <= 3.5 ? "rod" : "filament") : "";
+    if (o.excluded) continue;
+    est += o.cells;
+    if (o.type === "aggregate") { cellsInAgg += o.cells; largest = Math.max(largest, o.area); }
+    else if (!(S.edge && o.border)) morphCount[o.morph]++;
+  }
+  let fg = 0, exA = 0;
+  for (let i = 0; i < N; i++) if (lab[i]) { fg++; const o = byL[lab[i]]; if (o && o.excluded) exA++; }
+  const singles = forSize.filter((o) => o.type === "single");
+  const mean = (arr, f) => (arr.length ? arr.reduce((s, o) => s + f(o), 0) / arr.length : NaN);
+  const sdv = (arr, f) => { if (arr.length < 2) return NaN; const m = mean(arr, f); return Math.sqrt(arr.reduce((s, o) => s + (f(o) - m) ** 2, 0) / (arr.length - 1)); };
+  const lin = um || 1;
+  let R = NaN;
+  if (live.length >= 5) {
+    let sum = 0; const pts = live;
+    for (let i = 0; i < pts.length; i++) { let best = Infinity;
+      for (let j = 0; j < pts.length; j++) if (i !== j) { const dx = pts[i].cx - pts[j].cx, dy = pts[i].cy - pts[j].cy, d2 = dx * dx + dy * dy; if (d2 < best) best = d2; }
+      sum += Math.sqrt(best); }
+    R = (sum / pts.length) / (0.5 / Math.sqrt(pts.length / N));
+  }
+  const coverage = (fg - exA) / N, pctAgg = est ? cellsInAgg / est : 0;
+  let stage;
+  if (coverage < 0.05) stage = pctAgg < 0.3 ? "Initial attachment" : "Early microcolonies";
+  else if (coverage < 0.25) stage = pctAgg < 0.3 ? "Early colonization" : "Microcolony formation";
+  else if (coverage < 0.6) stage = "Maturing biofilm";
+  else stage = "Confluent biofilm";
+  const summary = {
+    coverage, nObj: live.length, est, density: um ? est / (N * a2 * 1e-6) : NaN,
+    nSingle: live.filter((o) => o.type === "single").length, nAgg: live.filter((o) => o.type === "aggregate").length,
+    len: mean(singles, (o) => o.major * lin), lenSd: sdv(singles, (o) => o.major * lin),
+    wid: mean(singles, (o) => o.minor * lin), widSd: sdv(singles, (o) => o.minor * lin),
+    ar: mean(singles, (o) => o.ar), pctAgg, largest: largest * a2, R, stage, ref: refPx * a2, morph: morphCount,
+    otsu: otsuT, thr, fieldArea: N * a2, unit: um ? "µm" : "px", nExcluded: objs.length - live.length,
+  };
+  return { W, H, lab, mask, norm, objs, byL, summary, um };
+}
+
+// ---------- loading ----------
+function latin1(buf) { try { return new TextDecoder("latin1").decode(buf); } catch (e) { return ""; } }
+function toNm(v, unit) { const f = { pm: 1e-3, nm: 1, "µm": 1e3, um: 1e3, "μm": 1e3, mm: 1e6 }[unit]; return f ? v * f : null; }
+function parseMeta(text) {
+  let m;
+  const ok = (v) => v && isFinite(v) && v > 0.005 && v < 1e6;
+  if ((m = text.match(/PixelWidth\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e9; if (ok(v)) return { nm: v, src: "Thermo/FEI metadata (PixelWidth)" }; }
+  if ((m = text.match(/Image Pixel Size\s*=\s*([0-9.]+)\s*(pm|nm|µm|μm|um|mm)/))) { const v = toNm(parseFloat(m[1]), m[2]); if (ok(v)) return { nm: v, src: "Zeiss metadata (Image Pixel Size)" }; }
+  if ((m = text.match(/PixelSizeX\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e9; if (ok(v)) return { nm: v, src: "Tescan metadata (PixelSizeX)" }; }
+  if ((m = text.match(/\$+SM_MICRON_MARKER\s+([0-9.]+)\s*(nm|um|µm|mm)/)) ) {
+    const b = text.match(/\$+SM_MICRON_BAR\s+([0-9.]+)/); const mk = toNm(parseFloat(m[1]), m[2]);
+    if (b && mk) { const v = mk / parseFloat(b[1]); if (ok(v)) return { nm: v, src: "JEOL sidecar (micron bar)" }; }
+  }
+  if ((m = text.match(/^PixelSize\s*=\s*([0-9.]+)/m))) { const v = parseFloat(m[1]); if (ok(v)) return { nm: v, src: "Hitachi sidecar (PixelSize)" }; }
+  if ((m = text.match(/Pixel ?Size\s*[=:]\s*([0-9.]+)\s*(pm|nm|µm|μm|um)/i))) { const v = toNm(parseFloat(m[1]), m[2].toLowerCase()); if (ok(v)) return { nm: v, src: "File metadata (pixel size)" }; }
+  return null;
+}
+function detectBar(gray, w, h) {
+  let rows = 0;
+  const maxRows = Math.floor(h * 0.3);
+  for (let y = h - 1; y >= h - maxRows; y--) {
+    let ext = 0; const row = y * w;
+    for (let x = 0; x < w; x++) { const v = gray[row + x]; if (v < 12 || v > 243) ext++; }
+    if (ext / w > 0.55) rows++; else break;
+  }
+  return rows >= 4 ? rows + 2 : 0;
+}
+function makeImage(name, rgba, w, h, meta) {
+  const gray = new Float32Array(w * h);
+  for (let i = 0, j = 0; i < gray.length; i++, j += 4) gray[i] = 0.299 * rgba[j] + 0.587 * rgba[j + 1] + 0.114 * rgba[j + 2];
+  const disp = new ImageData(w, h);
+  for (let i = 0, j = 0; i < gray.length; i++, j += 4) { const v = gray[i]; disp.data[j] = disp.data[j + 1] = disp.data[j + 2] = v; disp.data[j + 3] = 255; }
+  const src = document.createElement("canvas"); src.width = w; src.height = h; src.getContext("2d").putImageData(disp, 0, 0);
+  return { id: state.nextId++, name, group: "", w, h, gray, disp, src, nm: meta ? meta.nm : null,
+           calSrc: meta ? meta.src : "Not calibrated. Measure the scale bar or type the pixel size.", excl: detectBar(gray, w, h), excluded: [], res: null, ver: -1 };
+}
+async function decodeFile(file) {
+  const buf = await file.arrayBuffer(), u8 = new Uint8Array(buf);
+  const isTiff = (u8[0] === 0x49 && u8[1] === 0x49 && u8[2] === 42 && u8[3] === 0) || (u8[0] === 0x4d && u8[1] === 0x4d && u8[2] === 0 && u8[3] === 42);
+  let w, h, rgba;
+  if (isTiff) {
+    if (!window.UTIF) throw new Error("The TIFF decoder did not load (it needs an internet connection). Export the image as PNG and try again.");
+    const ifds = UTIF.decode(buf); const ifd = ifds[0];
+    UTIF.decodeImage(buf, ifd); rgba = UTIF.toRGBA8(ifd); w = ifd.width; h = ifd.height;
+  } else {
+    const bmp = await createImageBitmap(file); w = bmp.width; h = bmp.height;
+    const c = document.createElement("canvas"); c.width = w; c.height = h; const cx = c.getContext("2d"); cx.drawImage(bmp, 0, 0);
+    rgba = cx.getImageData(0, 0, w, h).data;
+  }
+  return { w, h, rgba, meta: parseMeta(latin1(buf)) };
+}
+const stem = (n) => n.replace(/\.[^.]+$/, "").toLowerCase();
+async function addFiles(files) {
+  const list = [...files];
+  const txt = list.filter((f) => /\.txt$/i.test(f.name)), imgs = list.filter((f) => !/\.txt$/i.test(f.name));
+  const side = {};
+  for (const t of txt) { const meta = parseMeta(await t.text()); if (meta) side[stem(t.name)] = meta; }
+  let first = null;
+  for (const f of imgs) {
+    try {
+      busy(true, "Reading " + f.name + "…");
+      const d = await decodeFile(f);
+      const img = makeImage(f.name, d.rgba, d.w, d.h, d.meta || side[stem(f.name)] || null);
+      img.group = guessGroup();
+      state.images.push(img); if (!first) first = img;
+    } catch (e) { toast("Could not read " + f.name + ". " + (e.message || e)); }
+  }
+  // sidecars dropped after their images
+  for (const img of state.images) { const m = side[stem(img.name)]; if (m && !img.nm) { img.nm = m.nm; img.calSrc = m.src; img.ver = -1; } }
+  busy(false);
+  if (first) select(state.images.indexOf(first));
+  renderStrip(); enqueueAll();
+}
+function guessGroup() { const cur = state.images[state.cur]; return cur ? cur.group : "Group A"; }
+
+// ---------- synthetic example ----------
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function synth(seed, clusters, perCluster, scattered, label) {
+  const W = 1024, IH = 720, BAR = 64, H = IH + BAR, R = rng(seed);
+  const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const gr = x.createLinearGradient(0, 0, W, IH); gr.addColorStop(0, "#5a5a5a"); gr.addColorStop(1, "#3c3c3c");
+  x.fillStyle = gr; x.fillRect(0, 0, W, IH);
+  for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${R() < 0.5 ? "255,255,255" : "0,0,0"},${0.04 + R() * 0.05})`; x.beginPath(); x.arc(R() * W, R() * IH, 2 + R() * 9, 0, 7); x.fill(); }
+  const cells = [];
+  const addCell = (cx, cy, ang, coccus) => {
+    const L = coccus ? 26 + R() * 4 : 58 + R() * 34, Wd = coccus ? L : 21 + R() * 5;
+    cells.push({ cx, cy, ang, L, Wd });
+  };
+  for (let k = 0; k < clusters; k++) {
+    const ccx = 120 + R() * (W - 240), ccy = 110 + R() * (IH - 220), base = R() * Math.PI;
+    for (let j = 0; j < perCluster * (0.6 + R() * 0.8); j++) {
+      const rr = Math.sqrt(R()) * (35 + perCluster * 5), t = R() * Math.PI * 2;
+      addCell(ccx + rr * Math.cos(t), ccy + rr * Math.sin(t), base + (R() - 0.5) * 1.2, false);
+    }
+  }
+  for (let k = 0; k < scattered; k++) addCell(40 + R() * (W - 80), 40 + R() * (IH - 80), R() * Math.PI, R() < 0.12);
+  x.strokeStyle = "rgba(210,210,210,0.18)"; x.lineWidth = 1.2;
+  for (let k = 0; k < cells.length / 3; k++) { const a = cells[(R() * cells.length) | 0], b = cells[(R() * cells.length) | 0];
+    x.beginPath(); x.moveTo(a.cx, a.cy); x.quadraticCurveTo((a.cx + b.cx) / 2 + (R() - 0.5) * 60, (a.cy + b.cy) / 2 + (R() - 0.5) * 60, b.cx, b.cy); x.stroke(); }
+  for (const cl of cells) {
+    x.save(); x.translate(cl.cx, cl.cy); x.rotate(cl.ang);
+    x.shadowColor = "rgba(0,0,0,0.55)"; x.shadowBlur = 7; x.shadowOffsetX = 2; x.shadowOffsetY = 3;
+    const g2 = x.createLinearGradient(0, -cl.Wd / 2, 0, cl.Wd / 2);
+    g2.addColorStop(0, "#e6e6e6"); g2.addColorStop(0.22, "#bdbdbd"); g2.addColorStop(0.62, "#a2a2a2"); g2.addColorStop(1, "#cfcfcf");
+    x.fillStyle = g2; x.beginPath();
+    const r = cl.Wd / 2, hl = Math.max(0, cl.L / 2 - r);
+    x.moveTo(-hl, -r); x.lineTo(hl, -r); x.arc(hl, 0, r, -Math.PI / 2, Math.PI / 2); x.lineTo(-hl, r); x.arc(-hl, 0, r, Math.PI / 2, Math.PI * 1.5); x.closePath(); x.fill();
+    x.shadowColor = "transparent"; x.strokeStyle = "rgba(245,245,245,0.55)"; x.lineWidth = 1.5; x.stroke();
+    x.restore();
+  }
+  const id = x.getImageData(0, 0, W, IH), d = id.data;
+  for (let i = 0; i < d.length; i += 4) { const nz = (R() + R() + R() - 1.5) * 26; for (let k = 0; k < 3; k++) d[i + k] = d[i + k] + nz; }
+  x.putImageData(id, 0, 0);
+  x.fillStyle = "#000"; x.fillRect(0, IH, W, BAR);
+  x.fillStyle = "#fff"; x.fillRect(0, IH, W, 2);
+  x.font = "15px monospace"; x.fillText("EHT = 5.00 kV   WD = 8.4 mm   Mag = 12.00 K X   Signal A = SE2", 16, IH + 26);
+  x.fillText(label + "  ·  SYNTHETIC EXAMPLE", 16, IH + 50);
+  x.fillRect(W - 140, IH + 20, 80, 8); x.fillText("2 µm", W - 120, IH + 50);
+  const rgba = x.getImageData(0, 0, W, H).data;
+  return makeImage(label + " (example).png", rgba, W, H, { nm: 25, src: "Example image, 25 nm/px (scale bar 2 µm = 80 px)" });
+}
+function loadSamples() {
+  const a = synth(7, 6, 14, 55, "Control 24 h"); a.group = "Control";
+  const b = synth(23, 2, 6, 38, "Treated 24 h"); b.group = "Treated";
+  state.images = state.images.filter((i) => !/\(example\)/.test(i.name));
+  state.images.unshift(a, b);
+  select(0); renderStrip(); enqueueAll();
+}
+
+// ---------- queue ----------
+let settingsVer = 0;
+function enqueueAll() {
+  const cur = state.images[state.cur];
+  state.queue = state.images.filter((i) => i.ver !== settingsVer);
+  if (cur) { state.queue = state.queue.filter((i) => i !== cur); if (cur.ver !== settingsVer) state.queue.unshift(cur); }
+  pump();
+}
+function pump() {
+  if (state.running) return;
+  const img = state.queue.shift();
+  if (!img) { busy(false); return; }
+  if (!state.images.includes(img)) return pump();
+  state.running = true; busy(true, "Analyzing " + img.name + "…");
+  setTimeout(() => {
+    try { img.res = analyze(img); img.ver = settingsVer; img.err = null; }
+    catch (e) { img.err = String(e && e.message || e); console.error(e); }
+    state.running = false;
+    if (img === state.images[state.cur]) { renderViewer(); renderSummary(); renderCharts(); }
+    renderTables(); renderGroupChart(); renderStrip();
+    pump();
+  }, 20);
+}
+function invalidate(img) { img.ver = -1; enqueueAll(); }
+
+// ---------- rendering ----------
+const cBase = $("#cBase"), cOver = $("#cOver"), cUI = $("#cUI");
+function select(i) {
+  state.cur = i; state.hover = 0; state.cal = null; $("#calBox").hidden = true; $("#calBtn").classList.remove("on");
+  syncImageFields(); renderStrip(); renderViewer(); renderSummary(); renderCharts(); renderTables();
+  const img = state.images[i]; if (img && img.ver !== settingsVer) enqueueAll();
+}
+function renderStrip() {
+  const el = $("#strip"); el.innerHTML = "";
+  state.images.forEach((img, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "thumb" + (i === state.cur ? " active" : "");
+    const cv = document.createElement("canvas"); cv.width = 240; cv.height = 168;
+    const cx = cv.getContext("2d"); const s = Math.max(240 / img.w, 168 / img.h);
+    cx.drawImage(img.src, (240 - img.w * s) / 2, (168 - img.h * s) / 2, img.w * s, img.h * s);
+    const nm = document.createElement("span"); nm.className = "tn"; nm.textContent = img.name; nm.title = img.name;
+    const g = document.createElement("span"); g.className = "tg";
+    const cov = img.res && img.ver === settingsVer ? (img.res.summary.coverage * 100).toFixed(1) + "%" : img.err ? "error" : "…";
+    g.innerHTML = `<span></span><span class="num">${cov}</span>`; g.firstChild.textContent = img.group || "No group";
+    b.append(cv, nm, g); b.onclick = () => select(i); el.appendChild(b);
+  });
+  const add = document.createElement("label"); add.className = "thumb"; add.htmlFor = "file";
+  add.style.cssText = "justify-content:center;align-items:center;color:var(--muted);min-height:130px;border-style:dashed";
+  add.textContent = "+ Add images"; el.appendChild(add);
+  const groups = [...new Set(state.images.map((i) => i.group).filter(Boolean))];
+  $("#groupList").innerHTML = groups.map((g) => `<option value="${esc(g)}"></option>`).join("");
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function renderViewer() {
+  const img = state.images[state.cur];
+  $("#emptyMsg").hidden = !!img; $("#cbox").hidden = !img;
+  if (!img) return;
+  for (const c of [cBase, cOver, cUI]) { if (c.width !== img.w) c.width = img.w; if (c.height !== img.h) c.height = img.h; }
+  const cbox = $("#cbox"); cbox.classList.toggle("native", state.native); cbox.style.width = state.native ? img.w + "px" : "100%";
+  const bx = cBase.getContext("2d"), ox = cOver.getContext("2d");
+  ox.clearRect(0, 0, img.w, img.h);
+  const r = img.res && img.res.W === img.w && img.res.H === img.h - img.excl ? img.res : null;
+  if (state.view === "original" || !r || state.view === "overlay") bx.putImageData(img.disp, 0, 0);
+  if (r && (state.view === "processed" || state.view === "mask")) {
+    const id = new ImageData(img.w, img.h); id.data.set(img.disp.data);
+    for (let i = 0; i < r.W * r.H; i++) { const v = state.view === "mask" ? (r.lab[i] ? 255 : 0) : r.norm[i]; const j = i * 4; id.data[j] = id.data[j + 1] = id.data[j + 2] = v; }
+    bx.putImageData(id, 0, 0);
+  }
+  if (r && state.view === "overlay") {
+    if (!r.overlay) {
+      const od = new ImageData(img.w, img.h), d = od.data, lab = r.lab, W = r.W;
+      for (let i = 0; i < r.W * r.H; i++) {
+        const L = lab[i]; if (!L) continue;
+        const o = r.byL[L], x = i % W, y = (i - x) / W, j = i * 4;
+        const edge = x === 0 || x === W - 1 || y === 0 || y === r.H - 1 || lab[i - 1] !== L || lab[i + 1] !== L || lab[i - W] !== L || lab[i + W] !== L;
+        let col = [150, 150, 150];
+        if (o) col = o.excluded ? [255, 90, 90] : o.type === "aggregate" ? [74, 168, 255] : [255, 176, 46];
+        d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2]; d[j + 3] = edge ? 255 : o && o.excluded ? 110 : 62;
+      }
+      for (let i = r.W * r.H * 4; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = 40; d[i + 3] = 170; }
+      r.overlay = od;
+    }
+    ox.putImageData(r.overlay, 0, 0);
+  } else if (img.excl) { ox.fillStyle = "rgba(40,40,40,0.66)"; ox.fillRect(0, img.h - img.excl, img.w, img.excl); }
+  drawUI();
+}
+function drawUI() {
+  const img = state.images[state.cur]; const ux = cUI.getContext("2d"); ux.clearRect(0, 0, cUI.width, cUI.height);
+  if (!img) return;
+  const scale = img.w / (cUI.getBoundingClientRect().width || img.w), lw = Math.max(1, 2 * scale);
+  const r = img.res;
+  if (r && state.hover && r.byL[state.hover] && state.view !== "original") {
+    const o = r.byL[state.hover];
+    ux.save(); ux.translate(o.cx, o.cy); ux.rotate(o.angle);
+    ux.strokeStyle = "#ffffff"; ux.lineWidth = lw; ux.setLineDash([4 * scale, 3 * scale]);
+    ux.beginPath(); ux.ellipse(0, 0, o.major / 2 + 3 * scale, o.minor / 2 + 3 * scale, 0, 0, Math.PI * 2); ux.stroke(); ux.restore();
+  }
+  if (state.cal && state.cal.a) {
+    const { a, b } = state.cal; ux.strokeStyle = "#ffd28a"; ux.lineWidth = lw * 1.5; ux.setLineDash([]);
+    ux.beginPath(); ux.moveTo(a.x, a.y); ux.lineTo(b.x, b.y); ux.stroke();
+    const t = 8 * scale; ux.beginPath(); ux.moveTo(a.x, a.y - t); ux.lineTo(a.x, a.y + t); ux.moveTo(b.x, b.y - t); ux.lineTo(b.x, b.y + t); ux.stroke();
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    ux.font = `${Math.round(13 * scale)}px ui-monospace, monospace`; ux.fillStyle = "#ffd28a";
+    ux.fillText(len.toFixed(1) + " px", Math.min(a.x, b.x), Math.min(a.y, b.y) - 10 * scale);
+  }
+  if (img.excl && state.view === "overlay") {
+    ux.font = `${Math.round(12 * scale)}px ui-monospace, monospace`; ux.fillStyle = "#bbbbbb"; ux.textAlign = "center";
+    ux.fillText("data bar · not analyzed", img.w / 2, img.h - img.excl / 2 + 4 * scale); ux.textAlign = "start";
+  }
+}
+const f1 = (v, d = 1) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed(d));
+const fInt = (v) => (v == null || !isFinite(v) ? "—" : Math.round(v).toLocaleString("en-US"));
+function fDensity(v) {
+  if (!isFinite(v)) return "—"; if (v < 1e4) return fInt(v);
+  const e = Math.floor(Math.log10(v)), sup = String(e).split("").map((d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]).join("");
+  return (v / 10 ** e).toFixed(2) + "×10" + sup;
+}
+function rWord(R) { return !isFinite(R) ? "" : R < 0.85 ? "clustered" : R > 1.15 ? "evenly spread" : "random"; }
+function renderSummary() {
+  const el = $("#summary"), img = state.images[state.cur];
+  if (!img) { el.innerHTML = '<h3>Reading</h3><p class="caveat">No image selected.</p>'; return; }
+  if (img.err) { el.innerHTML = `<h3>Reading</h3><p class="err">Analysis failed: ${esc(img.err)}</p>`; return; }
+  if (!img.res) { el.innerHTML = '<h3>Reading</h3><p class="caveat">Analyzing…</p>'; return; }
+  const s = img.res.summary, u = s.unit, u2 = u + "²";
+  el.innerHTML = `
+    <h3>Reading</h3>
+    <div class="stagechip"><i></i>${s.stage}</div>
+    <div class="bigs">
+      <div class="big"><b>${f1(s.coverage * 100)}%</b><span>Coverage</span></div>
+      <div class="big"><b>${fInt(s.est)}</b><span>Est. cells</span></div>
+      <div class="big"><b>${fDensity(s.density)}</b><span>Cells / mm²</span></div>
+    </div>
+    <dl class="kv">
+      <dt>Objects detected</dt><dd>${s.nObj} <span style="color:var(--muted)">(${s.nSingle} single · ${s.nAgg} aggregate)</span></dd>
+      <dt>Cells in aggregates</dt><dd>${f1(s.pctAgg * 100)}%</dd>
+      <dt>Cell length</dt><dd>${f1(s.len, 2)} ± ${f1(s.lenSd, 2)} ${u}</dd>
+      <dt>Cell width</dt><dd>${f1(s.wid, 2)} ± ${f1(s.widSd, 2)} ${u}</dd>
+      <dt>Aspect ratio</dt><dd>${f1(s.ar, 2)}</dd>
+      <dt>Morphotypes</dt><dd>${s.morph.rod} rod · ${s.morph.coccoid} coccoid · ${s.morph.filament} filament</dd>
+      <dt>Largest aggregate</dt><dd>${s.largest ? f1(s.largest, 1) + " " + u2 : "—"}</dd>
+      <dt>Clark–Evans R</dt><dd>${f1(s.R, 2)} ${rWord(s.R)}</dd>
+      <dt>Single-cell area</dt><dd>${f1(s.ref, u === "µm" ? 2 : 0)} ${u2}</dd>
+      <dt>Field analyzed</dt><dd>${f1(s.fieldArea, u === "µm" ? 0 : 0)} ${u2}</dd>
+      <dt>Threshold</dt><dd>Otsu ${s.otsu} → ${s.thr}</dd>
+    </dl>
+    ${u === "px" ? '<p class="err">Not calibrated: sizes are in pixels and density is unavailable.</p>' : ""}
+    ${s.nExcluded ? `<p class="caveat">${s.nExcluded} object(s) excluded by you.</p>` : ""}
+    <p class="caveat">Stage is a heuristic from 2-D coverage and aggregation. Confirm thickness and matrix with an orthogonal method.</p>`;
+}
+function syncImageFields() {
+  const img = state.images[state.cur];
+  $("#imgName").textContent = img ? `${img.name} · ${img.w}×${img.h} px` : "No image";
+  $("#group").value = img ? img.group : "";
+  $("#nm").value = img && img.nm ? +img.nm.toFixed(4) : "";
+  $("#excl").value = img ? img.excl : "";
+  $("#calSrc").innerHTML = img ? `Source: <b>${esc(img.calSrc)}</b>${img.nm ? ` · field width ${f1(img.w * img.nm / 1000, 1)} µm` : ""}` : "";
+}
+function syncSettings() {
+  $("#sPol").value = S.pol; $("#sBg").value = S.bg; $("#sSig").value = S.sig; $("#sOff").value = S.off; $("#sOpen").value = S.open;
+  $("#sMin").value = S.min; $("#sFill").checked = S.fill; $("#sSplit").checked = S.split; $("#sH").value = S.h; $("#sEdge").checked = S.edge; $("#sRef").value = S.ref;
+  $("#oBg").textContent = S.bg ? S.bg + " px" : "off"; $("#oSig").textContent = S.sig.toFixed(1) + " px";
+  $("#oOff").textContent = (S.off > 0 ? "+" : "") + S.off; $("#oH").textContent = S.h.toFixed(2) + " px"; $("#sH").disabled = !S.split;
+}
+
+// ---------- charts ----------
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function niceStep(max, n) { const raw = max / n || 1, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
+function setupCanvas(c) {
+  const dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
+  c.width = Math.max(1, Math.round(r.width * dpr)); c.height = Math.max(1, Math.round(r.height * dpr));
+  const x = c.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, r.width, r.height);
+  return { x, w: r.width, h: r.height };
+}
+function frame(x, w, h, xmax, ymax, xl, yl, xFmt) {
+  const pad = { l: 44, r: 10, t: 10, b: 34 }, pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  const ink = css("--muted"), line = css("--line");
+  x.font = "11px " + css("--font-mono"); x.fillStyle = ink; x.strokeStyle = line; x.lineWidth = 1;
+  const ys = niceStep(ymax, 4);
+  for (let v = 0; v <= ymax + 1e-9; v += ys) { const y = pad.t + ph - (v / ymax) * ph; x.beginPath(); x.moveTo(pad.l, y + 0.5); x.lineTo(pad.l + pw, y + 0.5); x.stroke(); x.textAlign = "right"; x.fillText(+v.toFixed(3), pad.l - 6, y + 4); }
+  if (xmax != null) { const xs = niceStep(xmax, 5); x.textAlign = "center";
+    for (let v = 0; v <= xmax + 1e-9; v += xs) { const px = pad.l + (v / xmax) * pw; x.fillText(xFmt ? xFmt(v) : +v.toFixed(3), px, pad.t + ph + 15); } }
+  x.textAlign = "center"; x.font = "11px " + css("--font-body"); x.fillText(xl, pad.l + pw / 2, h - 4);
+  x.save(); x.translate(11, pad.t + ph / 2); x.rotate(-Math.PI / 2); x.fillText(yl, 0, 0); x.restore();
+  return { pad, pw, ph };
+}
+function histogram(c, vals, opt) {
+  const { x, w, h } = setupCanvas(c);
+  if (!vals.length) { x.fillStyle = css("--muted"); x.font = "12px " + css("--font-body"); x.fillText("No objects to plot", 12, 24); return; }
+  const s = [...vals].sort((a, b) => a - b), top = opt.max || s[Math.min(s.length - 1, Math.floor(s.length * 0.98))] * 1.05 || 1;
+  const nb = 24, bins = new Array(nb).fill(0);
+  for (const v of vals) bins[Math.min(nb - 1, Math.max(0, Math.floor((v / top) * nb)))]++;
+  const ymax = Math.max(...bins) * 1.1 || 1;
+  const { pad, pw, ph } = frame(x, w, h, top, ymax, opt.xl, "Count", opt.xFmt);
+  for (const b of opt.bands || []) { x.fillStyle = b.c; x.fillRect(pad.l + (b.from / top) * pw, pad.t, ((Math.min(b.to, top) - b.from) / top) * pw, ph); }
+  x.fillStyle = css("--accent");
+  const bw = pw / nb;
+  bins.forEach((n, i) => { if (!n) return; const bh = (n / ymax) * ph; x.fillRect(pad.l + i * bw + 1, pad.t + ph - bh, bw - 2, bh); });
+  for (const m of opt.marks || []) { if (m.v > top) continue; const px = pad.l + (m.v / top) * pw; x.strokeStyle = css("--ink"); x.setLineDash([4, 3]); x.beginPath(); x.moveTo(px, pad.t); x.lineTo(px, pad.t + ph); x.stroke(); x.setLineDash([]);
+    x.fillStyle = css("--ink"); x.textAlign = px > pad.l + pw * 0.7 ? "right" : "left"; x.font = "11px " + css("--font-body"); x.fillText(m.label, px + (x.textAlign === "left" ? 4 : -4), pad.t + 12); }
+}
+function renderCharts() {
+  const img = state.images[state.cur], r = img && img.res;
+  const objs = r ? r.objs.filter((o) => !o.excluded && !(S.edge && o.border)) : [];
+  const a2 = r && r.um ? r.um * r.um : 1, u = r && r.um ? "µm²" : "px²";
+  histogram($("#chArea"), objs.map((o) => o.area * a2), { xl: "Object area (" + u + ")", marks: r ? [{ v: r.summary.ref, label: "1 cell" }] : [] });
+  const tint = css("--line");
+  histogram($("#chAR"), objs.filter((o) => o.type === "single").map((o) => o.ar), { xl: "Aspect ratio (length ÷ width)", max: 6,
+    bands: [{ from: 0, to: 1.4, c: hexA(tint, 0.6) }, { from: 3.5, to: 6, c: hexA(tint, 0.6) }],
+    marks: [{ v: 1.4, label: "coccoid │ rod" }, { v: 3.5, label: "rod │ filament" }] });
+}
+function hexA(col, a) { const m = col.match(/^#([0-9a-f]{6})$/i); if (!m) return col; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+function renderGroupChart() {
+  const { x, w, h } = setupCanvas($("#chGroup"));
+  const done = state.images.filter((i) => i.res && i.ver === settingsVer);
+  if (!done.length) return;
+  const groups = [...new Set(done.map((i) => i.group || "No group"))];
+  const ymax = Math.max(10, Math.ceil(Math.max(...done.map((i) => i.res.summary.coverage * 100)) * 1.15 / 10) * 10);
+  const { pad, pw, ph } = frame(x, w, h, null, ymax, "", "Coverage (%)");
+  const gw = pw / groups.length;
+  groups.forEach((g, gi) => {
+    const items = done.filter((i) => (i.group || "No group") === g), cx = pad.l + gw * (gi + 0.5);
+    const m = items.reduce((s, i) => s + i.res.summary.coverage * 100, 0) / items.length;
+    const bh = (m / ymax) * ph;
+    x.fillStyle = hexA(css("--accent"), 0.25); x.fillRect(cx - gw * 0.3, pad.t + ph - bh, gw * 0.6, bh);
+    x.strokeStyle = css("--accent"); x.lineWidth = 2; x.beginPath(); x.moveTo(cx - gw * 0.3, pad.t + ph - bh); x.lineTo(cx + gw * 0.3, pad.t + ph - bh); x.stroke();
+    items.forEach((it, k) => { const v = it.res.summary.coverage * 100, px = cx + (items.length > 1 ? (k / (items.length - 1) - 0.5) * gw * 0.35 : 0), py = pad.t + ph - (v / ymax) * ph;
+      x.fillStyle = it === state.images[state.cur] ? css("--ink") : css("--muted"); x.beginPath(); x.arc(px, py, 4, 0, 7); x.fill(); });
+    x.fillStyle = css("--ink"); x.font = "12px " + css("--font-body"); x.textAlign = "center";
+    x.fillText(trunc(g, Math.max(6, Math.floor(gw / 7))) + ` (n=${items.length})`, cx, h - 8);
+    x.font = "11px " + css("--font-mono"); x.fillText(m.toFixed(1) + "%", cx, pad.t + ph - bh - 6);
+  });
+}
+const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+
+// ---------- tables & export ----------
+const IMG_COLS = [
+  ["Image", (i) => i.name], ["Group", (i) => i.group], ["Pixel size (nm)", (i) => (i.nm ? f1(i.nm, 2) : "")],
+  ["Coverage (%)", (s) => f1(s.coverage * 100, 2), 1], ["Objects", (s) => s.nObj, 1], ["Est. cells", (s) => s.est, 1],
+  ["Cells/mm²", (s) => (isFinite(s.density) ? Math.round(s.density) : ""), 1], ["Length (µm)", (s) => (s.unit === "µm" ? f1(s.len, 3) : ""), 1],
+  ["Width (µm)", (s) => (s.unit === "µm" ? f1(s.wid, 3) : ""), 1], ["Aspect ratio", (s) => f1(s.ar, 2), 1], ["Cells in aggregates (%)", (s) => f1(s.pctAgg * 100, 1), 1],
+  ["Largest aggregate (µm²)", (s) => (s.unit === "µm" && s.largest ? f1(s.largest, 2) : ""), 1], ["Clark–Evans R", (s) => f1(s.R, 3), 1], ["Stage", (s) => s.stage, 1],
+];
+function imgRow(i) { const s = i.res && i.res.summary; return IMG_COLS.map(([, f, needS]) => (needS ? (s && i.ver === settingsVer ? f(s) : i.err ? "error" : "…") : f(i))); }
+function groupRows() {
+  const done = state.images.filter((i) => i.res && i.ver === settingsVer), groups = [...new Set(done.map((i) => i.group || "No group"))];
+  const ms = (arr) => { const n = arr.length, m = arr.reduce((a, b) => a + b, 0) / n; const sd = n > 1 ? Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)) : NaN; return [m, sd]; };
+  return groups.map((g) => {
+    const it = done.filter((i) => (i.group || "No group") === g).map((i) => i.res.summary);
+    const cov = ms(it.map((s) => s.coverage * 100)), den = ms(it.map((s) => s.density)), cells = ms(it.map((s) => s.est)), agg = ms(it.map((s) => s.pctAgg * 100)), len = ms(it.map((s) => s.len));
+    return [g, it.length, f1(cov[0], 2), f1(cov[1], 2), isFinite(den[0]) ? Math.round(den[0]) : "", isFinite(den[1]) ? Math.round(den[1]) : "", f1(cells[0], 1), f1(agg[0], 1), f1(len[0], 3)];
+  });
+}
+const GRP_COLS = ["Group", "n images", "Coverage mean (%)", "Coverage SD", "Cells/mm² mean", "Cells/mm² SD", "Est. cells mean", "Cells in aggregates (%)", "Cell length mean"];
+function renderTables() {
+  const t = $("#imgTable");
+  t.innerHTML = `<thead><tr>${IMG_COLS.map((c) => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${state.images.map((i, k) =>
+    `<tr data-k="${k}" class="${k === state.cur ? "active" : ""}">${imgRow(i).map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  t.querySelectorAll("tbody tr").forEach((tr) => (tr.onclick = () => select(+tr.dataset.k)));
+  const g = groupRows();
+  $("#grpTable").innerHTML = `<thead><tr>${GRP_COLS.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${g.length ? g.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${GRP_COLS.length}">No results yet</td></tr>`}</tbody>`;
+}
+const tsv = (head, rows) => [head, ...rows].map((r) => r.map((v) => String(v).replace(/[\t\n]/g, " ")).join("\t")).join("\n");
+function copyText(text, what) {
+  const fallback = () => { const ta = $("#copybuf"); ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast("Text selected below. Press Ctrl+C (⌘C) to copy."); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => { $("#copybuf").hidden = true; toast(what + " copied. Paste into your spreadsheet."); }, fallback);
+  else fallback();
+}
+function methodsText() {
+  const parts = [];
+  parts.push(`SEM micrographs were analysed in Biofilm SEM Reader (browser-based). The instrument data bar was excluded and pixel size was taken from the image metadata or the scale bar.`);
+  parts.push(S.bg ? `Uneven illumination was corrected with a morphological top-hat (grey opening, radius ${S.bg} px).` : `No background correction was applied.`);
+  parts.push(`Images were smoothed with a Gaussian filter (σ = ${S.sig.toFixed(1)} px) and segmented with Otsu's threshold${S.off ? ` offset by ${S.off > 0 ? "+" : ""}${S.off} grey levels` : ""}, treating cells as ${S.pol === "bright" ? "brighter" : "darker"} than the substrate.`);
+  parts.push(`The binary mask was cleaned by ${S.open ? `morphological opening (${S.open} px), ` : ""}${S.fill ? "filling of small holes, " : ""}and removal of objects smaller than ${S.min} px².`);
+  if (S.split) parts.push(`Touching cells were separated by a marker-controlled watershed on the Euclidean distance transform with h-maxima markers (h = ${S.h} px).`);
+  parts.push(`Surface coverage was the fraction of the analysed field occupied by cells. Cell length and width were estimated from second-moment ellipse fits${S.edge ? " of objects not touching the image border" : ""}. Objects larger than 1.8× the single-cell area (${S.ref ? S.ref + " µm²" : "median object area"}) were classed as aggregates, and cell number was estimated as aggregate area divided by single-cell area. Spatial aggregation was quantified with the Clark–Evans nearest-neighbour index.`);
+  return parts.join(" ");
+}
+
+// ---------- interaction ----------
+function toImg(e) { const r = cUI.getBoundingClientRect(); return { x: (e.clientX - r.left) * cUI.width / r.width, y: (e.clientY - r.top) * cUI.height / r.height }; }
+cUI.addEventListener("pointerdown", (e) => {
+  const img = state.images[state.cur]; if (!img) return; const p = toImg(e);
+  if (state.cal && state.cal.mode === "draw") { state.cal.a = p; state.cal.b = { ...p }; state.cal.drag = true; cUI.setPointerCapture(e.pointerId); drawUI(); return; }
+  const r = img.res; if (!r || p.y >= r.H) return;
+  const L = r.lab[Math.floor(p.y) * r.W + Math.floor(p.x)]; if (!L || !r.byL[L]) return;
+  const o = r.byL[L];
+  if (o.excluded) img.excluded = img.excluded.filter((q) => { const xi = Math.round(q.x), yi = Math.round(q.y); return !(yi < r.H && r.lab[yi * r.W + xi] === L); });
+  else img.excluded.push({ x: Math.floor(p.x), y: Math.floor(p.y) });
+  invalidate(img);
+});
+cUI.addEventListener("pointermove", (e) => {
+  const img = state.images[state.cur]; if (!img) return; const p = toImg(e);
+  if (state.cal && state.cal.drag) { state.cal.b = e.shiftKey ? p : { x: p.x, y: state.cal.a.y }; drawUI(); return; }
+  const r = img.res, tip = $("#tip");
+  const L = r && p.y < r.H && p.x >= 0 && p.x < r.W ? r.lab[Math.floor(p.y) * r.W + Math.floor(p.x)] : 0;
+  const o = L && r.byL[L];
+  if (state.hover !== (o ? L : 0)) { state.hover = o ? L : 0; drawUI(); }
+  if (!o) { tip.hidden = true; return; }
+  const um = r.um, a2 = um ? um * um : 1, u = um ? "µm" : "px";
+  tip.innerHTML = `#${o.id} · ${o.excluded ? "excluded" : o.type === "aggregate" ? `aggregate ≈ ${o.cells} cells` : o.morph}${o.border ? " · edge" : ""}<br>` +
+    `area ${f1(o.area * a2, um ? 3 : 0)} ${u}²<br>length ${f1(o.major * (um || 1), um ? 2 : 1)} ${u} · width ${f1(o.minor * (um || 1), um ? 2 : 1)} ${u}<br>` +
+    `aspect ${f1(o.ar, 2)} · circularity ${f1(o.circ, 2)}<br><span style="color:#9aa">${o.excluded ? "click to restore" : "click to exclude"}</span>`;
+  const st = $("#stage").getBoundingClientRect(); tip.hidden = false;
+  let tx = e.clientX - st.left + $("#stage").scrollLeft + 14, ty = e.clientY - st.top + $("#stage").scrollTop + 14;
+  if (tx + tip.offsetWidth > $("#stage").scrollLeft + st.width - 8) tx -= tip.offsetWidth + 28;
+  tip.style.left = tx + "px"; tip.style.top = ty + "px";
+});
+cUI.addEventListener("pointerleave", () => { $("#tip").hidden = true; if (state.hover) { state.hover = 0; drawUI(); } });
+cUI.addEventListener("pointerup", () => {
+  if (!state.cal || !state.cal.drag) return; state.cal.drag = false;
+  const { a, b } = state.cal, len = Math.hypot(b.x - a.x, b.y - a.y);
+  state.cal.len = len; $("#calApply").disabled = len < 5;
+  $("#calHint").textContent = len < 5 ? "Line too short. Drag along the whole scale bar." : `Measured ${len.toFixed(1)} px. Enter the length printed on the bar, then Apply.`;
+});
+$("#calBtn").onclick = () => {
+  if (!state.images[state.cur]) return;
+  const on = !(state.cal && state.cal.mode);
+  state.cal = on ? { mode: "draw" } : null; $("#calBox").hidden = !on; $("#calBtn").classList.toggle("on", on); $("#calApply").disabled = true;
+  $("#calHint").textContent = "Drag along the scale bar in the image. The line snaps horizontal; hold Shift to draw at an angle.";
+  drawUI();
+};
+$("#calCancel").onclick = () => { state.cal = null; $("#calBox").hidden = true; $("#calBtn").classList.remove("on"); drawUI(); };
+$("#calApply").onclick = () => {
+  const img = state.images[state.cur]; const v = parseFloat($("#barLen").value) * parseFloat($("#barUnit").value);
+  if (!img || !state.cal || !(v > 0) || !(state.cal.len > 0)) return;
+  img.nm = v / state.cal.len; img.calSrc = `Scale bar: ${$("#barLen").value} ${$("#barUnit").selectedOptions[0].text} = ${state.cal.len.toFixed(1)} px`;
+  $("#calCancel").onclick(); syncImageFields(); invalidate(img); toast(`Calibrated: ${img.nm.toFixed(2)} nm/px`);
+};
+$("#nm").onchange = () => { const img = state.images[state.cur]; if (!img) return; const v = parseFloat($("#nm").value);
+  img.nm = v > 0 ? v : null; img.calSrc = v > 0 ? "Entered by hand" : "Not calibrated. Measure the scale bar or type the pixel size."; syncImageFields(); invalidate(img); };
+$("#calAll").onclick = () => { const img = state.images[state.cur]; if (!img || !img.nm) { toast("Calibrate this image first."); return; }
+  let n = 0; for (const o of state.images) if (o !== img) { o.nm = img.nm; o.calSrc = "Copied from " + img.name; o.ver = -1; n++; } enqueueAll(); toast(`Pixel size applied to ${n} other image(s).`); };
+$("#excl").onchange = () => { const img = state.images[state.cur]; if (!img) return; img.excl = Math.max(0, Math.min(img.h - 8, parseInt($("#excl").value) || 0)); img.excluded = []; syncImageFields(); invalidate(img); };
+$("#exclAuto").onclick = () => { const img = state.images[state.cur]; if (!img) return; img.excl = detectBar(img.gray, img.w, img.h); syncImageFields(); invalidate(img); toast(img.excl ? `Data bar: ${img.excl} px` : "No data bar found."); };
+$("#group").oninput = () => { const img = state.images[state.cur]; if (!img) return; img.group = $("#group").value.trim(); renderTables(); renderGroupChart(); renderStrip(); };
+$("#removeBtn").onclick = () => { if (state.cur < 0) return; state.images.splice(state.cur, 1); select(Math.min(state.cur, state.images.length - 1)); renderStrip(); renderTables(); renderGroupChart(); };
+$("#viewSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.view = b.dataset.view;
+  document.querySelectorAll("#viewSeg button").forEach((x) => x.classList.toggle("on", x === b)); renderViewer(); };
+$("#zoomBtn").onclick = () => { state.native = !state.native; $("#zoomBtn").textContent = state.native ? "Fit to width" : "Actual pixels"; renderViewer(); };
+$("#file").onchange = (e) => { if (e.target.files.length) addFiles(e.target.files); e.target.value = ""; };
+$("#sampleBtn").onclick = loadSamples;
+const stageEl = $("#stage");
+stageEl.addEventListener("dragover", (e) => { e.preventDefault(); $("#drop").hidden = false; });
+stageEl.addEventListener("dragleave", (e) => { if (!stageEl.contains(e.relatedTarget)) $("#drop").hidden = true; });
+stageEl.addEventListener("drop", (e) => { e.preventDefault(); $("#drop").hidden = true; if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+
+let tmr = 0;
+function bindSetting(id, key, parse, evt = "input") {
+  $(id).addEventListener(evt, () => { S[key] = parse($(id)); syncSettings(); clearTimeout(tmr);
+    tmr = setTimeout(() => { settingsVer++; enqueueAll(); renderStrip(); renderTables(); }, 220); });
+}
+bindSetting("#sPol", "pol", (e) => e.value, "change");
+bindSetting("#sBg", "bg", (e) => +e.value);
+bindSetting("#sSig", "sig", (e) => +e.value);
+bindSetting("#sOff", "off", (e) => +e.value);
+bindSetting("#sOpen", "open", (e) => +e.value, "change");
+bindSetting("#sMin", "min", (e) => Math.max(0, +e.value || 0), "change");
+bindSetting("#sFill", "fill", (e) => e.checked, "change");
+bindSetting("#sSplit", "split", (e) => e.checked, "change");
+bindSetting("#sH", "h", (e) => +e.value);
+bindSetting("#sEdge", "edge", (e) => e.checked, "change");
+bindSetting("#sRef", "ref", (e) => (parseFloat(e.value) > 0 ? String(parseFloat(e.value)) : ""), "change");
+
+$("#copyImgs").onclick = () => copyText(tsv(IMG_COLS.map((c) => c[0]), state.images.map(imgRow)), "Image table");
+$("#copyGroups").onclick = () => copyText(tsv(GRP_COLS, groupRows()), "Group summary");
+$("#copyObjs").onclick = () => {
+  const img = state.images[state.cur], r = img && img.res; if (!r) return;
+  const um = r.um, a2 = um ? um * um : 1, l = um || 1, u = um ? "µm" : "px";
+  copyText(tsv(["Object", `X (${u})`, `Y (${u})`, `Area (${u}²)`, `Length (${u})`, `Width (${u})`, "Aspect ratio", "Circularity", "Class", "Morphotype", "Est. cells", "Touches edge", "Excluded"],
+    r.objs.map((o) => [o.id, f1(o.cx * l, 3), f1(o.cy * l, 3), f1(o.area * a2, 4), f1(o.major * l, 3), f1(o.minor * l, 3), f1(o.ar, 3), f1(o.circ, 3), o.type, o.morph, o.cells, o.border ? "yes" : "no", o.excluded ? "yes" : "no"])), `${r.objs.length} objects`);
+};
+$("#copyMethods").onclick = () => copyText(methodsText(), "Methods text");
+
+let toastT = 0;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); }
+function busy(on, msg) { const b = $("#busy"); b.hidden = !on; if (msg) b.textContent = msg; }
+let rz = 0; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderCharts(); renderGroupChart(); drawUI(); }, 120); });
+const mq = window.matchMedia("(prefers-color-scheme: dark)");
+(mq.addEventListener ? mq.addEventListener("change", () => { renderCharts(); renderGroupChart(); }) : null);
+new MutationObserver(() => { renderCharts(); renderGroupChart(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+syncSettings();
+loadSamples();
+</script>
