@@ -1,47 +1,37 @@
-<title>Biofilm SEM Reader</title>
+<title>Root Canal Biofilm Scorer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
 <style>
-/* Layout: instrument console. Dark "SEM screen" stage on the left, parameter stack on the right, figures and batch table below. */
+/* Layout: instrument console. Dark SEM stage left, score + sample record right, thesis tables and figures below. */
 :root {
-  --bg: #e9ecef;
-  --panel: #f7f8f9;
-  --raised: #ffffff;
-  --ink: #161a1e;
-  --muted: #59636d;
-  --line: #cfd5db;
-  --accent: #b86e00;
-  --accent-ink: #ffffff;
-  --stage: #0b0d0f;
-  --stage-ink: #c9d0d6;
-  --good: #2f7d4f;
-  --warn: #a35a00;
-  --bad: #b3261e;
-  --c-single: #ffb02e;
-  --c-agg: #4aa8ff;
-  --c-excl: #ff5a5a;
+  --bg: #e9ecef; --panel: #f7f8f9; --raised: #ffffff; --ink: #161a1e; --muted: #59636d; --line: #cfd5db;
+  --accent: #b86e00; --accent-ink: #ffffff; --stage: #0b0d0f; --stage-ink: #c9d0d6;
+  --bad: #b3261e; --warn: #9a5800;
+  /* ordinal score ramp, 1 (clean) → 4 (heavy biofilm) */
+  --s1: #cfe3d4; --s2: #e9c46a; --s3: #e07a3a; --s4: #9b2226; --s-ink: #161a1e;
+  --c-bio: #ffb02e; --c-excl: #ff5a5a;
   --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121518; --panel: #191d21; --raised: #1f2429; --ink: #e4e8ec; --muted: #9aa5af;
-    --line: #2e353c; --accent: #f2a531; --accent-ink: #1a1206; --stage: #050607; --stage-ink: #c9d0d6;
-    --good: #5cc286; --warn: #f0a548; --bad: #ff7b72; color-scheme: dark;
+    --bg: #121518; --panel: #191d21; --raised: #1f2429; --ink: #e4e8ec; --muted: #9aa5af; --line: #2e353c;
+    --accent: #f2a531; --accent-ink: #1a1206; --stage: #050607; --bad: #ff7b72; --warn: #f0a548;
+    --s1: #3d6b4a; --s2: #b8952f; --s3: #d0682c; --s4: #c2383e; --s-ink: #f4f6f8; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #121518; --panel: #191d21; --raised: #1f2429; --ink: #e4e8ec; --muted: #9aa5af;
-  --line: #2e353c; --accent: #f2a531; --accent-ink: #1a1206; --stage: #050607; --stage-ink: #c9d0d6;
-  --good: #5cc286; --warn: #f0a548; --bad: #ff7b72; color-scheme: dark;
+  --bg: #121518; --panel: #191d21; --raised: #1f2429; --ink: #e4e8ec; --muted: #9aa5af; --line: #2e353c;
+  --accent: #f2a531; --accent-ink: #1a1206; --stage: #050607; --bad: #ff7b72; --warn: #f0a548;
+  --s1: #3d6b4a; --s2: #b8952f; --s3: #d0682c; --s4: #c2383e; --s-ink: #f4f6f8; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body {
-  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; margin: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 20px 40px;
 }
@@ -57,82 +47,77 @@ button, .btn {
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 button:hover, .btn:hover { border-color: var(--muted); }
+button:disabled { opacity: 0.5; cursor: default; }
 button:focus-visible, .btn:focus-within, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-.primary:hover { filter: brightness(1.06); border-color: var(--accent); }
 button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-input[type=number], input[type=text], select {
-  background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0;
-}
+input[type=number], input[type=text], select { background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
 input[type=range] { accent-color: var(--accent); width: 100%; }
 input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 
 header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
-header.top p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+header.top p { margin: 4px 0 0; color: var(--muted); max-width: 72ch; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
 .thumb {
   flex: 0 0 auto; width: 150px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
-  padding: 6px; display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer;
+  padding: 6px; display: flex; flex-direction: column; gap: 4px; text-align: left; cursor: pointer; position: relative;
 }
 .thumb.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.thumb canvas { width: 100%; height: 84px; object-fit: cover; border-radius: 4px; background: var(--stage); display: block; }
+.thumb canvas { width: 100%; height: 84px; border-radius: 4px; background: var(--stage); display: block; }
 .thumb .tn { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.thumb .tg { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; }
+.thumb .tg { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.pill { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--s-ink); }
+.p1 { background: var(--s1); } .p2 { background: var(--s2); } .p3 { background: var(--s3); color: #fff; } .p4 { background: var(--s4); color: #fff; }
+.p0 { background: var(--line); color: var(--muted); }
 
-.main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
-@media (max-width: 960px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 18px; align-items: start; }
+@media (max-width: 980px) { .main { grid-template-columns: minmax(0, 1fr); } }
 .viewer { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--raised); }
 .seg button { border: 0; border-radius: 0; border-right: 1px solid var(--line); }
 .seg button:last-child { border-right: 0; }
 .tools { display: flex; gap: 8px; flex-wrap: wrap; }
-.stage {
-  position: relative; background: var(--stage); border-radius: 10px; overflow: auto; max-height: 78vh; min-height: 220px;
-  border: 1px solid var(--line);
-}
+.stage { position: relative; background: var(--stage); border-radius: 10px; overflow: auto; max-height: 78vh; min-height: 220px; border: 1px solid var(--line); }
 .cbox { position: relative; width: 100%; line-height: 0; }
-.cbox canvas { display: block; width: 100%; height: auto; image-rendering: auto; }
+.cbox canvas { display: block; width: 100%; height: auto; }
 .cbox.native canvas { image-rendering: pixelated; }
 #cOver, #cUI { position: absolute; inset: 0; width: 100%; height: 100%; }
 #cUI { cursor: crosshair; }
-.tip {
-  position: absolute; pointer-events: none; z-index: 3; background: rgba(10,12,14,0.92); color: #e8edf1;
-  border: 1px solid #3a434b; border-radius: 6px; padding: 8px 10px; font-size: 12px; line-height: 1.5;
-  font-family: var(--font-mono); white-space: nowrap;
-}
-.busy {
-  position: absolute; top: 10px; right: 10px; z-index: 4; background: rgba(10,12,14,0.85); color: #ffd28a;
-  font-family: var(--font-mono); font-size: 12px; padding: 4px 8px; border-radius: 4px;
-}
-.drop {
-  position: absolute; inset: 8px; border: 2px dashed var(--accent); border-radius: 8px; display: grid; place-items: center;
-  color: #ffd28a; font-family: var(--font-display); font-size: 22px; background: rgba(0,0,0,0.6); z-index: 5;
-}
+.tip { position: absolute; pointer-events: none; z-index: 3; background: rgba(10,12,14,0.92); color: #e8edf1; border: 1px solid #3a434b; border-radius: 6px; padding: 8px 10px; font-size: 12px; line-height: 1.5; font-family: var(--font-mono); white-space: nowrap; }
+.busy { position: absolute; top: 10px; right: 10px; z-index: 4; background: rgba(10,12,14,0.85); color: #ffd28a; font-family: var(--font-mono); font-size: 12px; padding: 4px 8px; border-radius: 4px; }
+.drop { position: absolute; inset: 8px; border: 2px dashed var(--accent); border-radius: 8px; display: grid; place-items: center; color: #ffd28a; font-family: var(--font-display); font-size: 22px; background: rgba(0,0,0,0.6); z-index: 5; }
 .empty { color: var(--stage-ink); padding: 60px 20px; text-align: center; line-height: 1.6; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); align-items: center; }
 .sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.hint { font-size: 12px; color: var(--muted); }
+.hint { font-size: 12px; color: var(--muted); margin: 0; }
 
 .side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-.summary { background: var(--raised); }
-.stagechip {
-  display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 16px;
-}
-.stagechip i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
-.bigs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.big { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.big b { font-family: var(--font-mono); font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
-.big span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.scorecard { background: var(--raised); }
+.scorehead { display: flex; align-items: center; gap: 14px; }
+.scorebig { width: 64px; height: 64px; border-radius: 12px; display: grid; place-items: center; font-family: var(--font-display); font-size: 38px; font-weight: 600; color: var(--s-ink); flex: 0 0 auto; }
+.scorebig.p3, .scorebig.p4 { color: #fff; }
+.scoremeta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.scoremeta b { font-family: var(--font-mono); font-size: 22px; font-weight: 500; }
+.scoremeta span { color: var(--muted); font-size: 12.5px; }
+.band { position: relative; height: 34px; }
+.band .bar { position: absolute; left: 0; right: 0; top: 4px; height: 12px; display: flex; border-radius: 3px; overflow: hidden; }
+.band .bar i { display: block; height: 100%; }
+.band .mk { position: absolute; top: 0; width: 2px; height: 20px; background: var(--ink); transform: translateX(-1px); }
+.band .tk { position: absolute; top: 19px; font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); transform: translateX(-50%); }
+.warnbox { border-left: 3px solid var(--warn); padding: 4px 8px; font-size: 12.5px; color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, transparent); }
 dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
 dl.kv dt { color: var(--muted); }
 dl.kv dd { margin: 0; text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .caveat { font-size: 11.5px; color: var(--muted); margin: 0; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > label { flex: 1 1 auto; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.grid2 label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--muted); }
+.grid2 select, .grid2 input { color: var(--ink); width: 100%; }
 .field { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
 .field label { font-size: 13px; }
 .field output { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: right; min-width: 56px; }
@@ -142,48 +127,54 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--font-mono); font-var
 .src { font-size: 12px; color: var(--muted); }
 .src b { color: var(--ink); font-weight: 500; }
 .calbox { border: 1px dashed var(--accent); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-input.w-num { width: 110px; }
+input.w-num { width: 100px; }
+details.panel > summary { cursor: pointer; list-style: none; }
+details.panel > summary::-webkit-details-marker { display: none; }
+details.panel > summary h3::after { content: " ▸"; }
+details.panel[open] > summary h3::after { content: " ▾"; }
 
-.charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 960px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+.charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 980px) { .charts { grid-template-columns: minmax(0, 1fr); } }
 figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-figure canvas { width: 100%; height: 200px; display: block; }
+figure canvas { width: 100%; height: 250px; display: block; }
 figcaption { font-size: 12px; color: var(--muted); }
 
 .batch { display: flex; flex-direction: column; gap: 10px; }
 .batch-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px; }
-.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.tablebox { overflow: auto; max-height: 460px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
-th { font-weight: 600; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; background: var(--raised); position: sticky; top: 0; }
+th { font-weight: 600; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; background: var(--raised); position: sticky; top: 0; z-index: 1; }
 td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
-td:first-child, td:nth-child(2) { font-family: var(--font-body); }
-tbody tr { cursor: pointer; }
-tbody tr:hover { background: var(--raised); }
+th.l, td.l { text-align: left; }
+td.l { font-family: var(--font-body); }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover { background: var(--raised); }
 tbody tr.active { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr:last-child td { border-bottom: 0; }
+td.flag { color: var(--warn); }
+.tabs { display: flex; gap: 0; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 12px; color: var(--muted); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); background: none; }
+.agree { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; }
+.agree b { font-family: var(--font-mono); font-weight: 500; }
 textarea#copybuf { width: 100%; height: 120px; font-family: var(--font-mono); font-size: 12px; background: var(--raised); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
 .notes { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
-.notes p, .notes li { max-width: 80ch; color: var(--muted); margin: 0; }
+.notes p, .notes li { max-width: 82ch; color: var(--muted); margin: 0; }
 .notes ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
-.toast {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 20;
-  background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; max-width: calc(100% - 32px);
-}
-.err { color: var(--bad); font-size: 12.5px; }
-@media (max-width: 520px) {
-  .bigs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  h1 { font-size: 24px; }
-}
+.scoretable { border-collapse: collapse; font-size: 13px; width: auto; }
+.scoretable td { text-align: left; padding: 3px 12px 3px 0; border: 0; font-family: var(--font-body); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 20; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; max-width: calc(100% - 32px); }
+.err { color: var(--bad); font-size: 12.5px; margin: 0; }
+@media (max-width: 520px) { h1 { font-size: 24px; } .grid2 { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
 <div class="wrap">
   <header class="top">
-    <div class="brand">
-      <h1>Biofilm SEM Reader</h1>
-      <p>Segments bacterial cells in scanning electron micrographs and reports surface coverage, cell counts, cell dimensions, aggregation and a biofilm-stage estimate. Images stay in your browser.</p>
+    <div>
+      <h1>Root Canal Biofilm Scorer</h1>
+      <p>Scores residual <i>E. faecalis</i> biofilm on SEM fields of root canal dentine with the protocol's 4-point coverage index, then rolls points up to root thirds, samples and irrigation groups. Images stay in your browser.</p>
     </div>
     <div class="actions">
       <label class="btn primary" for="file">Add SEM images</label>
@@ -197,165 +188,160 @@ textarea#copybuf { width: 100%; height: 120px; font-family: var(--font-mono); fo
   <main class="main">
     <section class="viewer">
       <div class="toolbar">
-        <div class="seg" role="tablist" id="viewSeg">
+        <div class="seg" id="viewSeg">
           <button type="button" data-view="overlay" class="on">Overlay</button>
           <button type="button" data-view="original">Original</button>
           <button type="button" data-view="processed">Processed</button>
           <button type="button" data-view="mask">Mask</button>
         </div>
         <div class="tools">
+          <button type="button" id="rectBtn">Exclude area</button>
+          <button type="button" id="rectClear">Clear areas</button>
           <button type="button" id="calBtn">Measure scale bar</button>
           <button type="button" id="zoomBtn">Actual pixels</button>
         </div>
       </div>
       <div class="stage" id="stage">
-        <div class="cbox" id="cbox">
-          <canvas id="cBase"></canvas><canvas id="cOver"></canvas><canvas id="cUI"></canvas>
-        </div>
-        <div class="empty" id="emptyMsg" hidden>Add SEM images (TIFF, PNG or JPEG) with the button above, or drop them here.<br>Instrument TIFFs from Thermo/FEI, Zeiss and Tescan are calibrated automatically.</div>
+        <div class="cbox" id="cbox"><canvas id="cBase"></canvas><canvas id="cOver"></canvas><canvas id="cUI"></canvas></div>
+        <div class="empty" id="emptyMsg" hidden>Add SEM images (TIFF, PNG or JPEG) with the button above, or drop them here.<br>Name files like <span class="mono">B07_middle_2.tif</span> and sample, third and point fill in automatically.</div>
         <div class="tip" id="tip" hidden></div>
         <div class="busy" id="busy" hidden>Analyzing…</div>
         <div class="drop" id="drop" hidden>Drop SEM images</div>
       </div>
       <div class="legend">
-        <span><i class="sw" style="background:var(--c-single)"></i>Single cell</span>
-        <span><i class="sw" style="background:var(--c-agg)"></i>Aggregate</span>
-        <span><i class="sw" style="background:var(--c-excl)"></i>Excluded by you</span>
+        <span><i class="sw" style="background:var(--c-bio)"></i>Counted as biofilm</span>
+        <span><i class="sw" style="background:var(--c-excl)"></i>Excluded object or area</span>
         <span><i class="sw" style="background:#555"></i>Data bar (not analyzed)</span>
-        <span class="hint">Click an object to exclude debris or crystals. Click it again to restore.</span>
+        <span class="hint" id="modeHint">Click an object to exclude it (zirconia particle, debris). Use “Exclude area” for cracks, splits, recesses and particles sitting in biofilm.</span>
       </div>
     </section>
 
     <aside class="side">
-      <section class="panel summary" id="summary" aria-live="polite"></section>
+      <section class="panel scorecard" id="scorecard" aria-live="polite"></section>
 
       <section class="panel">
-        <h3>Sample</h3>
-        <div class="row">
-          <span class="src" id="imgName" style="flex:1;min-width:0;overflow-wrap:anywhere"></span>
-          <button type="button" id="removeBtn">Remove</button>
+        <h3>Sample record</h3>
+        <div class="src" id="imgName" style="overflow-wrap:anywhere"></div>
+        <div class="grid2">
+          <label>Sample ID<input type="text" id="fSample" placeholder="e.g. B07"></label>
+          <label>Group<select id="fGroup"></select></label>
+          <label>Root third<select id="fThird"><option value="">—</option><option>Coronal</option><option>Middle</option><option>Apical</option></select></label>
+          <label>Point<select id="fPoint"><option value="">—</option><option>1</option><option>2</option><option>3</option></select></label>
+          <label>Image use<select id="fKind"><option value="score">Biofilm score (1000×)</option><option value="tubule">Tubule occlusion check</option></select></label>
+          <label id="tubWrap">Tubules<select id="fTubule"><option value="">Not assessed</option><option value="open">Open</option><option value="partial">Partly occluded</option><option value="occluded">Occluded by particles</option></select></label>
         </div>
-        <div class="field">
-          <label for="group">Group / condition</label><span></span>
-          <input type="text" id="group" list="groupList" placeholder="e.g. Control, 24 h, Treated" style="grid-column:1/-1">
-          <datalist id="groupList"></datalist>
-        </div>
+        <div class="row"><button type="button" id="removeBtn">Remove image</button></div>
       </section>
 
       <section class="panel">
         <h3>Calibration</h3>
-        <div class="row">
-          <label for="nm">Pixel size</label>
-          <input type="number" id="nm" class="w-num" min="0" step="any" placeholder="unknown"> <span class="mono">nm/px</span>
-        </div>
+        <div class="row"><label for="nm">Pixel size</label><input type="number" id="nm" class="w-num" min="0" step="any" placeholder="unknown"> <span class="mono">nm/px</span></div>
         <div class="src" id="calSrc"></div>
         <div class="calbox" id="calBox" hidden>
-          <div class="hint" id="calHint">Drag along the scale bar in the image. The line snaps horizontal; hold Shift to draw at an angle.</div>
-          <div class="row">
-            <label for="barLen">Bar length</label>
-            <input type="number" id="barLen" class="w-num" min="0" step="any" value="2">
-            <select id="barUnit" aria-label="Bar unit"><option value="1000">µm</option><option value="1">nm</option></select>
-          </div>
+          <p class="hint" id="calHint">Drag along the scale bar. The line snaps horizontal; hold Shift for any angle.</p>
+          <div class="row"><label for="barLen">Bar length</label><input type="number" id="barLen" class="w-num" min="0" step="any" value="10">
+            <select id="barUnit" aria-label="Bar unit"><option value="1000">µm</option><option value="1">nm</option></select></div>
           <div class="row"><button type="button" class="primary" id="calApply" disabled>Apply</button><button type="button" id="calCancel">Cancel</button></div>
         </div>
-        <div class="row">
-          <label for="excl">Data bar height</label>
-          <input type="number" id="excl" class="w-num" min="0" step="1"> <span class="mono">px</span>
-          <button type="button" id="exclAuto">Detect</button>
-        </div>
+        <div class="row"><label for="excl">Data bar height</label><input type="number" id="excl" class="w-num" min="0" step="1"> <span class="mono">px</span><button type="button" id="exclAuto">Detect</button></div>
         <button type="button" id="calAll">Use this pixel size for all images</button>
       </section>
 
-      <section class="panel">
-        <h3>Segmentation · applies to all images</h3>
-        <div class="row">
-          <label for="sPol">Cells appear</label>
-          <select id="sPol"><option value="bright">Brighter than substrate</option><option value="dark">Darker than substrate</option></select>
+      <details class="panel" id="segPanel">
+        <summary><h3>Biofilm detection · same for every image</h3></summary>
+        <div class="row"><label for="sMode">Threshold</label>
+          <select id="sMode"><option value="abs">Fixed brightness (recommended)</option><option value="fixed">Above local dentine level</option><option value="otsu">Automatic per image (Otsu)</option></select></div>
+        <div class="field" id="absWrap">
+          <label for="sAbs">Biofilm brighter than grey level</label><output id="oAbs"></output>
+          <input type="range" id="sAbs" min="1" max="254" step="1">
+          <small>One cut-off for the whole study. It holds from clean dentine to confluent biofilm, provided every field is imaged with the same kV, detector, brightness and contrast. Set it once on a well-covered field, check a clean field, then leave it.</small>
+          <label class="check" style="grid-column:1/-1"><input type="checkbox" id="sFlat"> Even out charging gradients (keeps brightness level)</label>
+          <button type="button" class="fromImg" style="grid-column:1/-1;justify-self:start">Set from this image (Otsu)</button>
         </div>
-        <div class="field">
+        <div class="field" id="fixWrap">
+          <label for="sFix">Biofilm brighter than local dentine by</label><output id="oFix"></output>
+          <input type="range" id="sFix" min="5" max="160" step="1">
+          <small>Compares each pixel with the 25th brightness percentile around it, so it tolerates brightness changes between sessions. It under-reads fields above about 60% coverage, where little dentine is visible.</small>
+          <button type="button" class="fromImg" style="grid-column:1/-1;justify-self:start">Set from this image (Otsu)</button>
+        </div>
+        <div class="field" id="offWrap">
+          <label for="sOff">Offset from Otsu</label><output id="oOff"></output>
+          <input type="range" id="sOff" min="-80" max="80" step="1">
+          <small>Otsu always splits an image in two, so clean fields get inflated coverage. Use only with care.</small>
+        </div>
+        <div class="row"><label for="sPol">Biofilm appears</label>
+          <select id="sPol"><option value="bright">Brighter than dentine</option><option value="dark">Darker than dentine</option></select></div>
+        <div class="field" id="bgWrap">
           <label for="sBg">Background flattening radius</label><output id="oBg"></output>
-          <input type="range" id="sBg" min="0" max="250" step="5">
-          <small>Removes charging gradients. Keep it larger than one cell; 0 turns it off.</small>
+          <input type="range" id="sBg" min="0" max="600" step="10">
+          <small>Window for estimating the local dentine level (25th percentile), which removes charging gradients. Keep it wider than the biofilm patches; set 0 to compare raw brightness.</small>
         </div>
         <div class="field">
           <label for="sSig">Noise smoothing (σ)</label><output id="oSig"></output>
           <input type="range" id="sSig" min="0" max="4" step="0.1">
         </div>
-        <div class="field">
-          <label for="sOff">Threshold offset from Otsu</label><output id="oOff"></output>
-          <input type="range" id="sOff" min="-80" max="80" step="1">
-        </div>
-        <div class="row">
-          <label for="sOpen">Morphological opening</label>
-          <select id="sOpen"><option value="0">Off</option><option value="1">1 px</option><option value="2">2 px</option><option value="3">3 px</option></select>
-        </div>
-        <div class="row">
-          <label for="sMin">Ignore objects smaller than</label>
-          <input type="number" id="sMin" class="w-num" min="0" step="1"> <span class="mono">px²</span>
-        </div>
-        <label class="check"><input type="checkbox" id="sFill"> Fill small holes inside cells</label>
-        <label class="check"><input type="checkbox" id="sSplit"> Split touching cells (distance watershed)</label>
-        <div class="field">
-          <label for="sH">Split sensitivity (h-maxima)</label><output id="oH"></output>
-          <input type="range" id="sH" min="0.5" max="6" step="0.25">
-          <small>Lower splits more aggressively. Raise it if rods are cut into pieces.</small>
-        </div>
-        <label class="check"><input type="checkbox" id="sEdge"> Leave edge-touching cells out of size statistics</label>
-        <div class="row">
-          <label for="sRef">Single-cell area</label>
-          <input type="number" id="sRef" class="w-num" min="0" step="any" placeholder="auto"> <span class="mono">µm²</span>
-        </div>
-        <p class="caveat">Used to convert aggregates into cell counts. Leave blank to use the median object area.</p>
-      </section>
+        <div class="row"><label for="sOpen">Morphological opening</label>
+          <select id="sOpen"><option value="0">Off</option><option value="1">1 px</option><option value="2">2 px</option></select></div>
+        <div class="row"><label for="sMin">Ignore specks smaller than</label><input type="number" id="sMin" class="w-num" min="0" step="1"> <span class="mono">px²</span></div>
+        <label class="check"><input type="checkbox" id="sFill"> Fill small gaps inside colonies</label>
+        <div class="row"><label for="sComb">Score of a root third</label>
+          <select id="sComb"><option value="median">Median of its point scores</option><option value="meancov">Score of mean coverage</option><option value="max">Highest point score</option></select></div>
+        <p class="caveat">The protocol scores 3 points per third but does not state how they combine. Pick the rule you will report.</p>
+        <button type="button" id="resetSeg" style="align-self:flex-start">Reset to defaults</button>
+      </details>
     </aside>
   </main>
 
   <section class="charts">
-    <figure><canvas id="chArea"></canvas><figcaption id="capArea">Object area distribution for the selected image. Dashed line marks the single-cell reference area.</figcaption></figure>
-    <figure><canvas id="chAR"></canvas><figcaption>Aspect ratio of single cells (ellipse fit). Bands mark coccoid (&lt;1.4), rod (1.4–3.5) and filamentous (&gt;3.5).</figcaption></figure>
-    <figure><canvas id="chGroup"></canvas><figcaption>Surface coverage per image, grouped by condition. Bars show the group mean.</figcaption></figure>
+    <figure><canvas id="chScore"></canvas><figcaption>Score distribution per group and root third (C = coronal, M = middle, A = apical). Each bar counts root-third scores across samples.</figcaption></figure>
+    <figure><canvas id="chCov"></canvas><figcaption>Mean biofilm coverage per root third of each sample. Shaded bands are the score index: 1 &lt;5%, 2 5–33%, 3 34–66%, 4 67–100%.</figcaption></figure>
   </section>
 
   <section class="batch">
     <div class="batch-head">
-      <h2>Batch results</h2>
+      <h2>Results</h2>
       <div class="actions">
-        <button type="button" id="copyImgs">Copy image table</button>
-        <button type="button" id="copyGroups">Copy group summary</button>
-        <button type="button" id="copyObjs">Copy objects (this image)</button>
+        <button type="button" id="copyTab">Copy this table</button>
         <button type="button" id="copyMethods">Copy methods text</button>
       </div>
     </div>
-    <div class="tablebox"><table id="imgTable"></table></div>
-    <div class="tablebox"><table id="grpTable"></table></div>
-    <p class="hint">Tables copy as tab-separated text that pastes straight into Excel, Sheets or Prism.</p>
+    <div class="tabs" id="tabs">
+      <button type="button" data-tab="groups" class="on">Groups × thirds</button>
+      <button type="button" data-tab="samples">Samples (SPSS)</button>
+      <button type="button" data-tab="points">Every field</button>
+      <button type="button" data-tab="agree">Examiner agreement</button>
+      <button type="button" data-tab="tubules">Tubule check</button>
+    </div>
+    <div id="agreeBox" class="agree" hidden></div>
+    <div class="tablebox"><table id="resTable"></table></div>
+    <p class="hint">Tables copy as tab-separated text. Paste into Excel, then open in SPSS, or paste straight into SPSS Data View. The Samples table is one row per root, ready for between-group tests.</p>
     <textarea id="copybuf" hidden readonly aria-label="Copied text"></textarea>
   </section>
 
   <section class="notes">
-    <h3>How the reading is made</h3>
+    <h3>Scoring index (protocol, after ref. 23)</h3>
+    <table class="scoretable">
+      <tr><td><span class="pill p1">1</span></td><td>less than 5% biofilm coverage</td></tr>
+      <tr><td><span class="pill p2">2</span></td><td>5%–33% biofilm coverage</td></tr>
+      <tr><td><span class="pill p3">3</span></td><td>34%–66% biofilm coverage</td></tr>
+      <tr><td><span class="pill p4">4</span></td><td>67%–100% biofilm coverage</td></tr>
+    </table>
+    <h3>How a field is read</h3>
     <ol>
-      <li>The instrument data bar is cropped and pixel size is read from TIFF metadata (Thermo/FEI <span class="mono">PixelWidth</span>, Zeiss <span class="mono">Image Pixel Size</span>, Tescan <span class="mono">PixelSizeX</span>) or from a Hitachi/JEOL sidecar <span class="mono">.txt</span> dropped with the image. Otherwise measure the scale bar.</li>
-      <li>Uneven brightness from charging is removed with a morphological top-hat (grey opening, then smoothing), followed by Gaussian noise smoothing.</li>
-      <li>Cells are separated from the substrate with Otsu's threshold plus your offset, cleaned by binary opening, hole filling and a minimum-size filter.</li>
-      <li>Touching cells are split by a marker-controlled watershed on the Euclidean distance map, seeded by h-maxima.</li>
-      <li>Each object is measured by area and an ellipse fit (length, width, aspect ratio). Objects larger than 1.8× the single-cell area count as aggregates and contribute area ÷ single-cell area cells.</li>
-      <li>Spatial pattern uses the Clark–Evans index R on object centroids: R &lt; 1 clustered, ≈ 1 random, &gt; 1 evenly spread. No edge correction is applied.</li>
+      <li>The instrument data bar is cropped. Pixel size, field width (HFW) and the data-bar height are read from Thermo Fisher/FEI TIFF metadata; other instruments use the scale bar.</li>
+      <li>Areas you mark (cracks, splitting lines, anatomical recesses, surfaces that are not prepared canal wall) and objects you click (zirconia particles, debris) leave both the numerator and the denominator.</li>
+      <li>Large charging gradients are evened out, noise is smoothed, and pixels brighter than one fixed grey level, the same for every image, are counted as biofilm. Bright cocci and EPS lie above it; dentine and dark tubule orifices lie below. Specks below the size limit are dropped.</li>
+      <li>Coverage = biofilm area ÷ evaluated area. It is rounded to a whole percent and placed in the index above, so 33.4% scores 2 and 33.6% scores 3.</li>
+      <li>Fields within 3 percentage points of a cut-off (5, 33.5, 66.5%) are flagged as borderline. Check them by eye and enter your own score if you disagree; your score is then used everywhere.</li>
+      <li>Each root third gets one score from its 3 points, and group tables report median, interquartile range and the count of each score.</li>
     </ol>
-    <p>The biofilm stage is a heuristic from 2-D coverage and aggregation only. SEM shows the top surface, and dehydration shrinks cells and collapses EPS, so confirm thickness and matrix with cross-sections, CLSM or crystal-violet staining. The two images loaded at start are synthetic examples, not measurements.</p>
+    <p>Automatic coverage depends on constant imaging conditions (accelerating voltage, detector, brightness and contrast). Before relying on it, score a set of fields yourself and check the Examiner agreement tab; a weighted kappa above 0.8 is usually reported as almost perfect agreement. The three images loaded at start are synthetic examples, not data.</p>
   </section>
 </div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
 "use strict";
-// ---------- state ----------
-const DEFAULTS = { pol: "bright", bg: 40, sig: 1.2, off: 0, open: 1, min: 60, fill: true, split: true, h: 1.5, edge: true, ref: "" };
-const S = Object.assign({}, DEFAULTS);
-const state = { images: [], cur: -1, view: "overlay", native: false, cal: null, hover: 0, queue: [], running: false, nextId: 1 };
-const $ = (s) => document.querySelector(s);
-const PI4 = Math.PI / 4;
-
 // ---------- image processing primitives ----------
 function boxesForGauss(sigma, n) {
   const wIdeal = Math.sqrt((12 * sigma * sigma) / n + 1);
@@ -475,222 +461,139 @@ function labelCC(m, w, h, start) {
   return { lab, n };
 }
 function areasOf(lab, n) { const a = new Int32Array(n + 1); for (let i = 0; i < lab.length; i++) a[lab[i]]++; return a; }
-function edt(m, w, h) {
-  const INF = 1e20, n = Math.max(w, h);
-  const g = new Float64Array(w * h), f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n + 1);
-  for (let i = 0; i < m.length; i++) g[i] = m[i] ? INF : 0;
-  const dt = (len) => {
-    let k = 0; v[0] = 0; z[0] = -INF; z[1] = INF;
-    for (let q = 1; q < len; q++) {
-      let s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]);
-      while (s <= z[k]) { k--; s = ((f[q] + q * q) - (f[v[k]] + v[k] * v[k])) / (2 * q - 2 * v[k]); }
-      k++; v[k] = q; z[k] = s; z[k + 1] = INF;
-    }
-    k = 0;
-    for (let q = 0; q < len; q++) { while (z[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + f[v[k]]; }
-  };
-  for (let x = 0; x < w; x++) { for (let y = 0; y < h; y++) f[y] = g[y * w + x]; dt(h); for (let y = 0; y < h; y++) g[y * w + x] = d[y]; }
-  for (let y = 0; y < h; y++) { for (let x = 0; x < w; x++) f[x] = g[y * w + x]; dt(w); for (let x = 0; x < w; x++) g[y * w + x] = d[x]; }
-  const out = new Float32Array(w * h), cap = w + h;
-  for (let i = 0; i < out.length; i++) out[i] = g[i] > 1e18 ? cap : Math.sqrt(g[i]);
-  return out;
-}
-// Morphological reconstruction by dilation (Vincent's hybrid algorithm, 8-connected)
-function reconstruct(J, I, w, h) {
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x; let m = J[i];
-    if (x > 0) m = Math.max(m, J[i - 1]);
-    if (y > 0) { const u = i - w; m = Math.max(m, J[u]); if (x > 0) m = Math.max(m, J[u - 1]); if (x < w - 1) m = Math.max(m, J[u + 1]); }
-    J[i] = Math.min(m, I[i]);
-  }
-  const fifo = [];
-  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
-    const i = y * w + x; let m = J[i];
-    const nb = [];
-    if (x < w - 1) nb.push(i + 1);
-    if (y < h - 1) { const dn = i + w; nb.push(dn); if (x < w - 1) nb.push(dn + 1); if (x > 0) nb.push(dn - 1); }
-    for (const q of nb) m = Math.max(m, J[q]);
-    J[i] = Math.min(m, I[i]);
-    for (const q of nb) if (J[q] < J[i] && J[q] < I[q]) { fifo.push(i); break; }
-  }
-  let head = 0;
-  while (head < fifo.length) {
-    const p = fifo[head++], x = p % w, y = (p - x) / w;
-    for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
-      for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx; if (xx < 0 || xx >= w) continue;
-        const q = yy * w + xx;
-        if (J[q] < J[p] && I[q] !== J[q]) { J[q] = Math.min(J[p], I[q]); fifo.push(q); } } }
-    if (head > 4e6) { fifo.splice(0, head); head = 0; }
-  }
-  return J;
-}
-function watershed(mask, w, h, hval) {
-  // Smooth the distance map so digital zig-zag along rod ridges does not create extra seeds
-  const raw = edt(mask, w, h), dist = gaussBlur(raw, w, h, 1);
-  for (let i = 0; i < dist.length; i++) if (!mask[i]) dist[i] = 0;
-  const J = new Float32Array(dist.length);
-  for (let i = 0; i < J.length; i++) J[i] = dist[i] - hval;
-  reconstruct(J, dist, w, h);
-  const seeds = new Uint8Array(mask.length);
-  for (let i = 0; i < seeds.length; i++) seeds[i] = mask[i] && dist[i] - J[i] >= hval * 0.5 ? 1 : 0;
-  const mk = labelCC(seeds, w, h);
-  const lab = mk.lab;
-  let cap = 0; for (let i = 0; i < mask.length; i++) if (mask[i]) cap++;
-  const keys = new Float32Array(cap + 1), vals = new Int32Array(cap + 1); let size = 0;
-  const push = (k, v) => { let i = size++; while (i > 0) { const p = (i - 1) >> 1; if (keys[p] >= k) break; keys[i] = keys[p]; vals[i] = vals[p]; i = p; } keys[i] = k; vals[i] = v; };
-  const pop = () => { const top = vals[0]; size--; const k = keys[size], vv = vals[size]; let i = 0;
-    for (;;) { const l = 2 * i + 1; if (l >= size) break; const r = l + 1; const c = r < size && keys[r] > keys[l] ? r : l; if (keys[c] <= k) break; keys[i] = keys[c]; vals[i] = vals[c]; i = c; }
-    keys[i] = k; vals[i] = vv; return top; };
-  for (let i = 0; i < lab.length; i++) if (lab[i]) push(dist[i], i);
-  while (size) {
-    const p = pop(), L = lab[p], x = p % w, y = (p - x) / w;
-    for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue;
-      for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue;
-        const q = yy * w + xx; if (mask[q] && !lab[q]) { lab[q] = L; push(dist[q], q); } } }
-  }
-  let n = mk.n;
-  const left = new Uint8Array(mask.length); let anyLeft = false;
-  for (let i = 0; i < left.length; i++) if (mask[i] && !lab[i]) { left[i] = 1; anyLeft = true; }
-  if (anyLeft) { const extra = labelCC(left, w, h); for (let i = 0; i < lab.length; i++) if (extra.lab[i]) lab[i] = n + extra.lab[i]; n += extra.n; }
-  return { lab, n };
-}
+
+// ---------- protocol constants ----------
+const GROUPS = { A: "No irrigation", B: "Passive needle irrigation", C: "Ultrasonic irrigation", D: "Sonic irrigation", E: "Zirconia microparticles" };
+const THIRDS = ["Coronal", "Middle", "Apical"];
+const CUTS = [5, 33.5, 66.5];
+function scoreOf(covPct) { const r = Math.round(covPct); return r < 5 ? 1 : r <= 33 ? 2 : r <= 66 ? 3 : 4; }
+function isBorderline(covPct) { return CUTS.some((c) => Math.abs(covPct - c) < 3); }
+
+// ---------- state ----------
+const DEFAULTS = { mode: "abs", abs: 140, flat: true, fix: 45, off: 0, pol: "bright", bg: 200, sig: 1.2, open: 1, min: 20, fill: true, comb: "median" };
+const S = Object.assign({}, DEFAULTS);
+const state = { images: [], cur: -1, view: "overlay", native: false, tool: null, cal: null, rect: null, hover: 0, queue: [], running: false, nextId: 1, tab: "groups" };
+let settingsVer = 1;
+const $ = (s) => document.querySelector(s);
 
 // ---------- analysis ----------
 function analyze(img) {
-  const W = img.w, H = Math.max(8, img.h - img.excl), N = W * H;
+  const D = img.data, W = D.w, H = Math.max(8, D.h - img.excl), N = W * H;
+  const valid = new Uint8Array(N).fill(1);
+  for (const r of img.rects) {
+    const x0 = Math.max(0, Math.floor(Math.min(r.x0, r.x1))), x1 = Math.min(W, Math.ceil(Math.max(r.x0, r.x1)));
+    const y0 = Math.max(0, Math.floor(Math.min(r.y0, r.y1))), y1 = Math.min(H, Math.ceil(Math.max(r.y0, r.y1)));
+    for (let y = y0; y < y1; y++) valid.fill(0, y * W + x0, y * W + x1);
+  }
   let g = new Float32Array(N);
-  for (let i = 0; i < N; i++) g[i] = S.pol === "bright" ? img.gray[i] : 255 - img.gray[i];
-  if (S.bg > 0) {
-    const r = Math.max(1, Math.round(S.bg));
-    const bg = boxBlur(rankFilter(rankFilter(g, W, H, r, false), W, H, r, true), W, H, Math.max(1, r >> 1));
+  for (let i = 0; i < N; i++) g[i] = S.pol === "bright" ? D.gray[i] : 255 - D.gray[i];
+  if (S.mode === "abs" && S.flat) {
+    // level-preserving gradient removal: subtract only the deviation of the coarse background from its mean
+    const bg = percentileBg(g, W, H, Math.max(64, Math.round(Math.max(W, H) / 4)), 0.25);
+    let m = 0; for (let i = 0; i < N; i++) m += bg[i]; m /= N;
+    for (let i = 0; i < N; i++) g[i] -= bg[i] - m;
+  }
+  if (S.mode !== "abs" && S.bg > 0) {
+    const bg = percentileBg(g, W, H, Math.max(8, Math.round(S.bg)), 0.25);
     for (let i = 0; i < N; i++) g[i] -= bg[i];
   }
   g = gaussBlur(g, W, H, S.sig);
-  let lo = Infinity, hi = -Infinity;
-  for (let i = 0; i < N; i++) { if (g[i] < lo) lo = g[i]; if (g[i] > hi) hi = g[i]; }
+  // display stretch + Otsu (valid pixels only)
+  let lo = Infinity, hi = -Infinity, nValid = 0;
+  for (let i = 0; i < N; i++) if (valid[i]) { nValid++; if (g[i] < lo) lo = g[i]; if (g[i] > hi) hi = g[i]; }
+  if (!nValid) { lo = 0; hi = 1; }
   const B = 2048, hb = new Int32Array(B), span = hi - lo || 1;
-  for (let i = 0; i < N; i++) hb[Math.min(B - 1, ((g[i] - lo) / span * (B - 1)) | 0)]++;
+  for (let i = 0; i < N; i++) if (valid[i]) hb[Math.min(B - 1, Math.max(0, ((g[i] - lo) / span * (B - 1)) | 0))]++;
   let acc = 0, p0 = 0, p1 = B - 1;
-  for (let b = 0; b < B; b++) { acc += hb[b]; if (acc >= N * 0.005) { p0 = b; break; } }
-  acc = 0; for (let b = B - 1; b >= 0; b--) { acc += hb[b]; if (acc >= N * 0.005) { p1 = b; break; } }
+  for (let b = 0; b < B; b++) { acc += hb[b]; if (acc >= nValid * 0.005) { p0 = b; break; } }
+  acc = 0; for (let b = B - 1; b >= 0; b--) { acc += hb[b]; if (acc >= nValid * 0.005) { p1 = b; break; } }
   const vlo = lo + (p0 / (B - 1)) * span, vhi = lo + (p1 / (B - 1)) * span, vs = 255 / ((vhi - vlo) || 1);
   const norm = new Uint8ClampedArray(N), hist = new Int32Array(256);
-  for (let i = 0; i < N; i++) { const v = (g[i] - vlo) * vs; norm[i] = v; hist[norm[i]]++; }
-  const otsuT = otsu(hist, N), thr = Math.max(0, Math.min(254, otsuT + S.off));
+  for (let i = 0; i < N; i++) { norm[i] = (g[i] - vlo) * vs; if (valid[i]) hist[norm[i]]++; }
+  const otsuN = otsu(hist, nValid), otsuRaw = vlo + otsuN / vs;
+  let thrRaw, thrSrc;
+  if (S.mode === "abs") { thrRaw = S.abs; thrSrc = `brightness > ${S.abs}`; }
+  else if (S.mode === "fixed") { thrRaw = S.fix; thrSrc = `${S.fix} above local dentine`; }
+  else { const t = Math.max(0, Math.min(254, otsuN + S.off)); thrRaw = vlo + t / vs; thrSrc = `Otsu${S.off ? (S.off > 0 ? " +" : " ") + S.off : ""} = ${thrRaw.toFixed(0)} grey levels`; }
   let mask = new Uint8Array(N);
-  for (let i = 0; i < N; i++) mask[i] = norm[i] > thr ? 1 : 0;
+  for (let i = 0; i < N; i++) mask[i] = valid[i] && g[i] > thrRaw ? 1 : 0;
   for (let k = 0; k < S.open; k++) mask = morph(mask, W, H, true);
   for (let k = 0; k < S.open; k++) mask = morph(mask, W, H, false);
   if (S.fill) {
-    const inv = new Uint8Array(N); for (let i = 0; i < N; i++) inv[i] = mask[i] ? 0 : 1;
+    const inv = new Uint8Array(N); for (let i = 0; i < N; i++) inv[i] = mask[i] || !valid[i] ? 0 : 1;
     const bl = labelCC(inv, W, H), ba = areasOf(bl.lab, bl.n), touch = new Uint8Array(bl.n + 1);
     for (let x = 0; x < W; x++) { touch[bl.lab[x]] = 1; touch[bl.lab[(H - 1) * W + x]] = 1; }
     for (let y = 0; y < H; y++) { touch[bl.lab[y * W]] = 1; touch[bl.lab[y * W + W - 1]] = 1; }
-    const maxHole = Math.max(S.min, 20);
+    const maxHole = Math.max(S.min * 2, 30);
     for (let i = 0; i < N; i++) { const L = bl.lab[i]; if (L && !touch[L] && ba[L] <= maxHole) mask[i] = 1; }
   }
-  { const cc = labelCC(mask, W, H), a = areasOf(cc.lab, cc.n);
-    for (let i = 0; i < N; i++) if (cc.lab[i] && a[cc.lab[i]] < S.min) mask[i] = 0; }
-  const seg = S.split ? watershed(mask, W, H, S.h) : labelCC(mask, W, H);
-  const lab = seg.lab, n = seg.n;
-
-  const area = new Float64Array(n + 1), sx = new Float64Array(n + 1), sy = new Float64Array(n + 1),
-        sxx = new Float64Array(n + 1), syy = new Float64Array(n + 1), sxy = new Float64Array(n + 1),
-        edges = new Int32Array(n + 1), border = new Uint8Array(n + 1);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x, L = lab[i]; if (!L) continue;
-    area[L]++; sx[L] += x; sy[L] += y; sxx[L] += x * x; syy[L] += y * y; sxy[L] += x * y;
-    if (x === 0 || y === 0 || x === W - 1 || y === H - 1) border[L] = 1;
-    if (x === 0 || lab[i - 1] !== L) edges[L]++;
-    if (x === W - 1 || lab[i + 1] !== L) edges[L]++;
-    if (y === 0 || lab[i - W] !== L) edges[L]++;
-    if (y === H - 1 || lab[i + W] !== L) edges[L]++;
-  }
+  const cc = labelCC(mask, W, H), area = areasOf(cc.lab, cc.n), lab = cc.lab;
+  for (let i = 0; i < N; i++) if (lab[i] && area[lab[i]] < S.min) { lab[i] = 0; mask[i] = 0; }
   const exclL = new Set();
   for (const p of img.excluded) { const xi = Math.round(p.x), yi = Math.round(p.y); if (xi >= 0 && yi >= 0 && xi < W && yi < H && lab[yi * W + xi]) exclL.add(lab[yi * W + xi]); }
-
-  const um = img.nm ? img.nm / 1000 : null, a2 = um ? um * um : 1;
-  const objs = [], byL = new Array(n + 1);
-  for (let L = 1; L <= n; L++) {
-    const a = area[L]; if (a < S.min * 0.5) continue;
-    const mx = sx[L] / a, my = sy[L] / a;
-    const cxx = sxx[L] / a - mx * mx + 1 / 12, cyy = syy[L] / a - my * my + 1 / 12, cxy = sxy[L] / a - mx * my;
-    const tr = (cxx + cyy) / 2, dd = Math.sqrt(((cxx - cyy) / 2) ** 2 + cxy * cxy);
-    const major = 4 * Math.sqrt(tr + dd), minor = 4 * Math.sqrt(Math.max(tr - dd, 1e-6));
-    const per = edges[L] * PI4;
-    const o = { L, id: 0, area: a, cx: mx, cy: my, major, minor, ar: major / minor, angle: 0.5 * Math.atan2(2 * cxy, cxx - cyy),
-                circ: Math.min(1, (4 * Math.PI * a) / (per * per)), border: !!border[L], excluded: exclL.has(L) };
-    objs.push(o); byL[L] = o;
-  }
-  objs.forEach((o, i) => (o.id = i + 1));
-  const live = objs.filter((o) => !o.excluded);
-  const forSize = live.filter((o) => !(S.edge && o.border));
-  const refUm = parseFloat(S.ref);
-  let refPx;
-  if (refUm > 0 && um) refPx = refUm / a2;
-  else { const s = forSize.map((o) => o.area).sort((x, y) => x - y); refPx = s.length ? s[Math.floor(s.length / 2)] : S.min; }
-  let est = 0, cellsInAgg = 0, largest = 0;
-  const morphCount = { coccoid: 0, rod: 0, filament: 0 };
-  for (const o of objs) {
-    o.type = o.area > 1.8 * refPx ? "aggregate" : "single";
-    o.cells = o.type === "aggregate" ? Math.max(2, Math.round(o.area / refPx)) : 1;
-    o.morph = o.type === "single" ? (o.ar < 1.4 ? "coccoid" : o.ar <= 3.5 ? "rod" : "filament") : "";
-    if (o.excluded) continue;
-    est += o.cells;
-    if (o.type === "aggregate") { cellsInAgg += o.cells; largest = Math.max(largest, o.area); }
-    else if (!(S.edge && o.border)) morphCount[o.morph]++;
-  }
+  const sx = new Float64Array(cc.n + 1), sy = new Float64Array(cc.n + 1);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const L = lab[y * W + x]; if (L) { sx[L] += x; sy[L] += y; } }
+  const objs = [], byL = new Array(cc.n + 1);
+  for (let L = 1; L <= cc.n; L++) if (area[L] >= S.min) { const o = { L, id: objs.length + 1, area: area[L], cx: sx[L] / area[L], cy: sy[L] / area[L], excluded: exclL.has(L) }; objs.push(o); byL[L] = o; }
   let fg = 0, exA = 0;
-  for (let i = 0; i < N; i++) if (lab[i]) { fg++; const o = byL[lab[i]]; if (o && o.excluded) exA++; }
-  const singles = forSize.filter((o) => o.type === "single");
-  const mean = (arr, f) => (arr.length ? arr.reduce((s, o) => s + f(o), 0) / arr.length : NaN);
-  const sdv = (arr, f) => { if (arr.length < 2) return NaN; const m = mean(arr, f); return Math.sqrt(arr.reduce((s, o) => s + (f(o) - m) ** 2, 0) / (arr.length - 1)); };
-  const lin = um || 1;
-  let R = NaN;
-  if (live.length >= 5) {
-    let sum = 0; const pts = live;
-    for (let i = 0; i < pts.length; i++) { let best = Infinity;
-      for (let j = 0; j < pts.length; j++) if (i !== j) { const dx = pts[i].cx - pts[j].cx, dy = pts[i].cy - pts[j].cy, d2 = dx * dx + dy * dy; if (d2 < best) best = d2; }
-      sum += Math.sqrt(best); }
-    R = (sum / pts.length) / (0.5 / Math.sqrt(pts.length / N));
-  }
-  const coverage = (fg - exA) / N, pctAgg = est ? cellsInAgg / est : 0;
-  let stage;
-  if (coverage < 0.05) stage = pctAgg < 0.3 ? "Initial attachment" : "Early microcolonies";
-  else if (coverage < 0.25) stage = pctAgg < 0.3 ? "Early colonization" : "Microcolony formation";
-  else if (coverage < 0.6) stage = "Maturing biofilm";
-  else stage = "Confluent biofilm";
+  for (let i = 0; i < N; i++) if (lab[i]) { fg++; if (byL[lab[i]].excluded) exA++; }
+  const evaluated = nValid - exA, coverage = evaluated > 0 ? ((fg - exA) / evaluated) * 100 : NaN;
+  const um = img.nm ? img.nm / 1000 : null, a2 = um ? um * um : null;
+  const live = objs.filter((o) => !o.excluded);
   const summary = {
-    coverage, nObj: live.length, est, density: um ? est / (N * a2 * 1e-6) : NaN,
-    nSingle: live.filter((o) => o.type === "single").length, nAgg: live.filter((o) => o.type === "aggregate").length,
-    len: mean(singles, (o) => o.major * lin), lenSd: sdv(singles, (o) => o.major * lin),
-    wid: mean(singles, (o) => o.minor * lin), widSd: sdv(singles, (o) => o.minor * lin),
-    ar: mean(singles, (o) => o.ar), pctAgg, largest: largest * a2, R, stage, ref: refPx * a2, morph: morphCount,
-    otsu: otsuT, thr, fieldArea: N * a2, unit: um ? "µm" : "px", nExcluded: objs.length - live.length,
+    coverage, score: isFinite(coverage) ? scoreOf(coverage) : null, borderline: isFinite(coverage) && isBorderline(coverage),
+    evaluatedPct: (evaluated / N) * 100, evaluatedArea: a2 ? evaluated * a2 : NaN, rectPct: ((N - nValid) / N) * 100,
+    nPatch: live.length, largest: a2 && live.length ? Math.max(...live.map((o) => o.area)) * a2 : NaN, nExcluded: objs.length - live.length,
+    thrSrc, otsuRaw,
   };
-  return { W, H, lab, mask, norm, objs, byL, summary, um };
+  return { W, H, lab, norm, objs, byL, summary, um };
+}
+
+// Local dentine level: 25th percentile in overlapping windows, bilinearly interpolated.
+// A low percentile ignores bright biofilm, and unlike a grey opening it is not dragged down by dark tubule orifices.
+function percentileBg(g, W, H, bs, q) {
+  const nx = Math.max(1, Math.ceil(W / bs)), ny = Math.max(1, Math.ceil(H / bs)), grid = new Float32Array(nx * ny);
+  const step = bs > 60 ? 3 : bs > 24 ? 2 : 1, buf = new Float32Array(Math.ceil((2 * bs + 2) / step + 1) ** 2 + 16);
+  for (let by = 0; by < ny; by++) for (let bx = 0; bx < nx; bx++) {
+    const cx = Math.min(W - 1, bx * bs + bs / 2), cy = Math.min(H - 1, by * bs + bs / 2);
+    const x0 = Math.max(0, Math.floor(cx - bs)), x1 = Math.min(W, Math.ceil(cx + bs)), y0 = Math.max(0, Math.floor(cy - bs)), y1 = Math.min(H, Math.ceil(cy + bs));
+    let n = 0;
+    for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) buf[n++] = g[y * W + x];
+    const a = buf.subarray(0, n).sort();
+    grid[by * nx + bx] = a[Math.floor((n - 1) * q)];
+  }
+  const out = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(ny - 1, Math.max(0, (y - bs / 2) / bs)), y0 = Math.floor(fy), y1 = Math.min(ny - 1, y0 + 1), ty = fy - y0;
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(nx - 1, Math.max(0, (x - bs / 2) / bs)), x0 = Math.floor(fx), x1 = Math.min(nx - 1, x0 + 1), tx = fx - x0;
+      const a = grid[y0 * nx + x0] * (1 - tx) + grid[y0 * nx + x1] * tx, b = grid[y1 * nx + x0] * (1 - tx) + grid[y1 * nx + x1] * tx;
+      out[y * W + x] = a * (1 - ty) + b * ty;
+    }
+  }
+  return out;
 }
 
 // ---------- loading ----------
 function latin1(buf) { try { return new TextDecoder("latin1").decode(buf); } catch (e) { return ""; } }
 function toNm(v, unit) { const f = { pm: 1e-3, nm: 1, "µm": 1e3, um: 1e3, "μm": 1e3, mm: 1e6 }[unit]; return f ? v * f : null; }
 function parseMeta(text) {
-  let m;
+  let m; const out = {};
   const ok = (v) => v && isFinite(v) && v > 0.005 && v < 1e6;
-  if ((m = text.match(/PixelWidth\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e9; if (ok(v)) return { nm: v, src: "Thermo/FEI metadata (PixelWidth)" }; }
-  if ((m = text.match(/Image Pixel Size\s*=\s*([0-9.]+)\s*(pm|nm|µm|μm|um|mm)/))) { const v = toNm(parseFloat(m[1]), m[2]); if (ok(v)) return { nm: v, src: "Zeiss metadata (Image Pixel Size)" }; }
-  if ((m = text.match(/PixelSizeX\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e9; if (ok(v)) return { nm: v, src: "Tescan metadata (PixelSizeX)" }; }
-  if ((m = text.match(/\$+SM_MICRON_MARKER\s+([0-9.]+)\s*(nm|um|µm|mm)/)) ) {
+  if ((m = text.match(/PixelWidth\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e9; if (ok(v)) Object.assign(out, { nm: v, src: "Thermo Fisher/FEI metadata (PixelWidth)" }); }
+  if (!out.nm && (m = text.match(/Image Pixel Size\s*=\s*([0-9.]+)\s*(pm|nm|µm|μm|um|mm)/))) { const v = toNm(parseFloat(m[1]), m[2]); if (ok(v)) Object.assign(out, { nm: v, src: "Zeiss metadata (Image Pixel Size)" }); }
+  if (!out.nm && (m = text.match(/PixelSizeX\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e9; if (ok(v)) Object.assign(out, { nm: v, src: "Tescan metadata (PixelSizeX)" }); }
+  if (!out.nm && (m = text.match(/\$+SM_MICRON_MARKER\s+([0-9.]+)\s*(nm|um|µm|mm)/))) {
     const b = text.match(/\$+SM_MICRON_BAR\s+([0-9.]+)/); const mk = toNm(parseFloat(m[1]), m[2]);
-    if (b && mk) { const v = mk / parseFloat(b[1]); if (ok(v)) return { nm: v, src: "JEOL sidecar (micron bar)" }; }
+    if (b && mk) { const v = mk / parseFloat(b[1]); if (ok(v)) Object.assign(out, { nm: v, src: "JEOL sidecar (micron bar)" }); }
   }
-  if ((m = text.match(/^PixelSize\s*=\s*([0-9.]+)/m))) { const v = parseFloat(m[1]); if (ok(v)) return { nm: v, src: "Hitachi sidecar (PixelSize)" }; }
-  if ((m = text.match(/Pixel ?Size\s*[=:]\s*([0-9.]+)\s*(pm|nm|µm|μm|um)/i))) { const v = toNm(parseFloat(m[1]), m[2].toLowerCase()); if (ok(v)) return { nm: v, src: "File metadata (pixel size)" }; }
-  return null;
+  if (!out.nm && (m = text.match(/^PixelSize\s*=\s*([0-9.]+)/m))) { const v = parseFloat(m[1]); if (ok(v)) Object.assign(out, { nm: v, src: "Hitachi sidecar (PixelSize)" }); }
+  if ((m = text.match(/\bHFW\s*=\s*([0-9.]+(?:[eE][-+]?\d+)?)/))) { const v = parseFloat(m[1]) * 1e6; if (v > 0.01 && v < 1e5) out.hfw = v; }
+  if ((m = text.match(/\[Image\][^\[]*?\bResolutionY\s*=\s*(\d+)/))) out.resY = parseInt(m[1]);
+  return out.nm || out.hfw || out.resY ? out : null;
 }
 function detectBar(gray, w, h) {
-  let rows = 0;
-  const maxRows = Math.floor(h * 0.3);
+  let rows = 0; const maxRows = Math.floor(h * 0.3);
   for (let y = h - 1; y >= h - maxRows; y--) {
     let ext = 0; const row = y * w;
     for (let x = 0; x < w; x++) { const v = gray[row + x]; if (v < 12 || v > 243) ext++; }
@@ -698,14 +601,13 @@ function detectBar(gray, w, h) {
   }
   return rows >= 4 ? rows + 2 : 0;
 }
-function makeImage(name, rgba, w, h, meta) {
+function makeData(rgba, w, h) {
   const gray = new Float32Array(w * h);
   for (let i = 0, j = 0; i < gray.length; i++, j += 4) gray[i] = 0.299 * rgba[j] + 0.587 * rgba[j + 1] + 0.114 * rgba[j + 2];
   const disp = new ImageData(w, h);
   for (let i = 0, j = 0; i < gray.length; i++, j += 4) { const v = gray[i]; disp.data[j] = disp.data[j + 1] = disp.data[j + 2] = v; disp.data[j + 3] = 255; }
   const src = document.createElement("canvas"); src.width = w; src.height = h; src.getContext("2d").putImageData(disp, 0, 0);
-  return { id: state.nextId++, name, group: "", w, h, gray, disp, src, nm: meta ? meta.nm : null,
-           calSrc: meta ? meta.src : "Not calibrated. Measure the scale bar or type the pixel size.", excl: detectBar(gray, w, h), excluded: [], res: null, ver: -1 };
+  return { gray, disp, src, w, h };
 }
 async function decodeFile(file) {
   const buf = await file.arrayBuffer(), u8 = new Uint8Array(buf);
@@ -713,8 +615,7 @@ async function decodeFile(file) {
   let w, h, rgba;
   if (isTiff) {
     if (!window.UTIF) throw new Error("The TIFF decoder did not load (it needs an internet connection). Export the image as PNG and try again.");
-    const ifds = UTIF.decode(buf); const ifd = ifds[0];
-    UTIF.decodeImage(buf, ifd); rgba = UTIF.toRGBA8(ifd); w = ifd.width; h = ifd.height;
+    const ifd = UTIF.decode(buf)[0]; UTIF.decodeImage(buf, ifd); rgba = UTIF.toRGBA8(ifd); w = ifd.width; h = ifd.height;
   } else {
     const bmp = await createImageBitmap(file); w = bmp.width; h = bmp.height;
     const c = document.createElement("canvas"); c.width = w; c.height = h; const cx = c.getContext("2d"); cx.drawImage(bmp, 0, 0);
@@ -722,149 +623,281 @@ async function decodeFile(file) {
   }
   return { w, h, rgba, meta: parseMeta(latin1(buf)) };
 }
-const stem = (n) => n.replace(/\.[^.]+$/, "").toLowerCase();
+const stem = (n) => n.replace(/\.[^.]+$/, "");
+const pad2 = (n) => String(n).padStart(2, "0");
+function parseName(name) {
+  const t = stem(name).replace(/\(example\)/i, "").split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const out = { group: "", sample: "", third: "", point: "" };
+  for (let i = 0; i < t.length; i++) {
+    const s = t[i]; let m;
+    if (!out.sample && (m = s.match(/^([A-Ea-e])(\d{1,3})$/))) { out.group = m[1].toUpperCase(); out.sample = out.group + pad2(+m[2]); continue; }
+    if (!out.sample && /^[A-Ea-e]$/.test(s) && /^\d{1,3}$/.test(t[i + 1] || "")) { out.group = s.toUpperCase(); out.sample = out.group + pad2(+t[i + 1]); i++; continue; }
+    if (!out.sample) continue;
+    if ((m = s.match(/^(c|m|a)([1-3])$/i))) { out.third = { c: "Coronal", m: "Middle", a: "Apical" }[m[1].toLowerCase()]; out.point = m[2]; continue; }
+    if (/^(c|cor|coro|coronal)$/i.test(s)) { out.third = "Coronal"; continue; }
+    if (/^(m|mid|middle)$/i.test(s)) { out.third = "Middle"; continue; }
+    if (/^(a|ap|api|apical|apex)$/i.test(s)) { out.third = "Apical"; continue; }
+    if ((m = s.match(/^(?:p|pt|point)?([1-3])$/i))) { out.point = m[1]; continue; }
+  }
+  return out;
+}
+function makeThumb(src) {
+  const cv = document.createElement("canvas"); cv.width = 240; cv.height = 168;
+  const cx = cv.getContext("2d"), s = Math.max(240 / src.width, 168 / src.height);
+  cx.drawImage(src, (240 - src.width * s) / 2, (168 - src.height * s) / 2, src.width * s, src.height * s);
+  return cv;
+}
+function newImage(name, d, meta, extra) {
+  const data = makeData(d.rgba, d.w, d.h), p = parseName(name);
+  let excl = detectBar(data.gray, d.w, d.h);
+  if (meta && meta.resY && meta.resY < d.h) excl = d.h - meta.resY;
+  const img = Object.assign({
+    id: state.nextId++, name, w: d.w, h: d.h, data, thumb: makeThumb(data.src), nm: meta && meta.nm ? meta.nm : null, hfw: meta && meta.hfw ? meta.hfw : null,
+    calSrc: meta && meta.nm ? meta.src : "Not calibrated. Coverage and score do not need it; areas in µm² do.",
+    barSrc: meta && meta.resY && meta.resY < d.h ? "from metadata" : excl ? "detected" : "none found",
+    excl, excluded: [], rects: [], sample: p.sample, group: p.group, third: p.third, point: p.point, kind: "score", tubule: "", override: "",
+    res: null, sum: null, ver: -1, err: null,
+  }, extra || {});
+  touch(img);
+  return img;
+}
+// keep decoded pixels for a few images only, so a full study (hundreds of fields) fits in memory
+let lru = [];
+function touch(img) { lru = lru.filter((x) => x !== img); lru.push(img); const cur = state.images[state.cur];
+  while (lru.length > 4) { const v = lru.find((x) => x !== cur && x !== img); if (!v) break; lru = lru.filter((x) => x !== v); v.data = null; v.res = null; } }
+async function ensureData(img) {
+  if (img.data) { touch(img); return; }
+  const d = img.gen ? img.gen() : await decodeFile(img.file);
+  img.data = makeData(d.rgba, d.w, d.h); touch(img);
+}
 async function addFiles(files) {
   const list = [...files];
   const txt = list.filter((f) => /\.txt$/i.test(f.name)), imgs = list.filter((f) => !/\.txt$/i.test(f.name));
   const side = {};
-  for (const t of txt) { const meta = parseMeta(await t.text()); if (meta) side[stem(t.name)] = meta; }
-  let first = null;
+  for (const t of txt) { const m = parseMeta(await t.text()); if (m) side[stem(t.name).toLowerCase()] = m; }
+  let first = null, n = 0;
   for (const f of imgs) {
     try {
-      busy(true, "Reading " + f.name + "…");
+      busy(true, `Reading ${++n}/${imgs.length}: ${f.name}`);
       const d = await decodeFile(f);
-      const img = makeImage(f.name, d.rgba, d.w, d.h, d.meta || side[stem(f.name)] || null);
-      img.group = guessGroup();
+      const img = newImage(f.name, d, d.meta || side[stem(f.name).toLowerCase()] || null, { file: f });
       state.images.push(img); if (!first) first = img;
+      if (n % 5 === 0) renderStrip();
     } catch (e) { toast("Could not read " + f.name + ". " + (e.message || e)); }
   }
-  // sidecars dropped after their images
-  for (const img of state.images) { const m = side[stem(img.name)]; if (m && !img.nm) { img.nm = m.nm; img.calSrc = m.src; img.ver = -1; } }
+  for (const img of state.images) { const m = side[stem(img.name).toLowerCase()]; if (m && m.nm && !img.nm) { img.nm = m.nm; img.calSrc = m.src; } }
   busy(false);
-  if (first) select(state.images.indexOf(first));
+  sortImages();
+  if (first) await select(state.images.indexOf(first));
   renderStrip(); enqueueAll();
 }
-function guessGroup() { const cur = state.images[state.cur]; return cur ? cur.group : "Group A"; }
+function sortImages() {
+  const cur = state.images[state.cur];
+  const key = (i) => [i.group || "Z", i.sample || "ZZZ", THIRDS.indexOf(i.third) < 0 ? 9 : THIRDS.indexOf(i.third), i.point || 9, i.name].join("|");
+  state.images.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+  state.cur = cur ? state.images.indexOf(cur) : state.cur;
+}
 
-// ---------- synthetic example ----------
+// ---------- synthetic dentine examples ----------
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-function synth(seed, clusters, perCluster, scattered, label) {
-  const W = 1024, IH = 720, BAR = 64, H = IH + BAR, R = rng(seed);
+function synthDentine(seed, nClusters, clusterR, scattered, particles, label) {
+  const W = 1024, IH = 704, BAR = 70, H = IH + BAR, R = rng(seed), NM = 83.3;
   const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
-  const gr = x.createLinearGradient(0, 0, W, IH); gr.addColorStop(0, "#5a5a5a"); gr.addColorStop(1, "#3c3c3c");
+  const gt = document.createElement("canvas"); gt.width = W; gt.height = IH; const gx = gt.getContext("2d");
+  gx.fillStyle = "#000"; gx.fillRect(0, 0, W, IH);
+  const gr = x.createLinearGradient(0, 0, W, IH); gr.addColorStop(0, "#787878"); gr.addColorStop(1, "#5c5c5c");
   x.fillStyle = gr; x.fillRect(0, 0, W, IH);
-  for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${R() < 0.5 ? "255,255,255" : "0,0,0"},${0.04 + R() * 0.05})`; x.beginPath(); x.arc(R() * W, R() * IH, 2 + R() * 9, 0, 7); x.fill(); }
-  const cells = [];
-  const addCell = (cx, cy, ang, coccus) => {
-    const L = coccus ? 26 + R() * 4 : 58 + R() * 34, Wd = coccus ? L : 21 + R() * 5;
-    cells.push({ cx, cy, ang, L, Wd });
-  };
-  for (let k = 0; k < clusters; k++) {
-    const ccx = 120 + R() * (W - 240), ccy = 110 + R() * (IH - 220), base = R() * Math.PI;
-    for (let j = 0; j < perCluster * (0.6 + R() * 0.8); j++) {
-      const rr = Math.sqrt(R()) * (35 + perCluster * 5), t = R() * Math.PI * 2;
-      addCell(ccx + rr * Math.cos(t), ccy + rr * Math.sin(t), base + (R() - 0.5) * 1.2, false);
-    }
+  for (let i = 0; i < 2500; i++) { x.fillStyle = `rgba(${R() < 0.5 ? "255,255,255" : "0,0,0"},${0.03 + R() * 0.05})`; x.beginPath(); x.arc(R() * W, R() * IH, 1 + R() * 4, 0, 7); x.fill(); }
+  // dentinal tubule orifices, ~3.7 µm across at the middle third
+  for (let ty = 30; ty < IH; ty += 66) for (let tx = 30 + ((ty / 66) % 2) * 33; tx < W; tx += 70) {
+    const px = tx + (R() - 0.5) * 22, py = ty + (R() - 0.5) * 22, r = 16 + R() * 6;
+    x.fillStyle = "rgba(150,150,150,0.8)"; x.beginPath(); x.ellipse(px, py, r + 3, r * 0.85 + 3, 0.3, 0, 7); x.fill();
+    x.fillStyle = "#262626"; x.beginPath(); x.ellipse(px, py, r, r * 0.85, 0.3, 0, 7); x.fill();
   }
-  for (let k = 0; k < scattered; k++) addCell(40 + R() * (W - 80), 40 + R() * (IH - 80), R() * Math.PI, R() < 0.12);
-  x.strokeStyle = "rgba(210,210,210,0.18)"; x.lineWidth = 1.2;
-  for (let k = 0; k < cells.length / 3; k++) { const a = cells[(R() * cells.length) | 0], b = cells[(R() * cells.length) | 0];
-    x.beginPath(); x.moveTo(a.cx, a.cy); x.quadraticCurveTo((a.cx + b.cx) / 2 + (R() - 0.5) * 60, (a.cy + b.cy) / 2 + (R() - 0.5) * 60, b.cx, b.cy); x.stroke(); }
-  for (const cl of cells) {
-    x.save(); x.translate(cl.cx, cl.cy); x.rotate(cl.ang);
-    x.shadowColor = "rgba(0,0,0,0.55)"; x.shadowBlur = 7; x.shadowOffsetX = 2; x.shadowOffsetY = 3;
-    const g2 = x.createLinearGradient(0, -cl.Wd / 2, 0, cl.Wd / 2);
-    g2.addColorStop(0, "#e6e6e6"); g2.addColorStop(0.22, "#bdbdbd"); g2.addColorStop(0.62, "#a2a2a2"); g2.addColorStop(1, "#cfcfcf");
-    x.fillStyle = g2; x.beginPath();
-    const r = cl.Wd / 2, hl = Math.max(0, cl.L / 2 - r);
-    x.moveTo(-hl, -r); x.lineTo(hl, -r); x.arc(hl, 0, r, -Math.PI / 2, Math.PI / 2); x.lineTo(-hl, r); x.arc(-hl, 0, r, Math.PI / 2, Math.PI * 1.5); x.closePath(); x.fill();
-    x.shadowColor = "transparent"; x.strokeStyle = "rgba(245,245,245,0.55)"; x.lineWidth = 1.5; x.stroke();
-    x.restore();
+  const cocci = [];
+  const coccus = (cx, cy) => { cocci.push([cx, cy, 4.6 + R() * 1.2]); if (R() < 0.45) { const a = R() * 6.28; cocci.push([cx + Math.cos(a) * 9, cy + Math.sin(a) * 9, 4.6 + R() * 1.2]); } };
+  for (let k = 0; k < nClusters; k++) {
+    const ccx = R() * W, ccy = R() * IH, rr = clusterR * (0.5 + R()), lobes = [];
+    for (let j = 0; j < 4; j++) lobes.push([ccx + (R() - 0.5) * rr, ccy + (R() - 0.5) * rr, rr * (0.45 + R() * 0.4)]);
+    for (const [lx, ly, lr] of lobes) { const n = Math.round((lr * lr) / 38); for (let j = 0; j < n; j++) { const a = R() * 6.28, d = Math.sqrt(R()) * lr; coccus(lx + Math.cos(a) * d, ly + Math.sin(a) * d); } }
+  }
+  for (let k = 0; k < scattered; k++) { const cx = R() * W, cy = R() * IH; for (let j = 0, n = 1 + Math.floor(R() * 5); j < n; j++) coccus(cx + j * 9 * Math.cos(k), cy + j * 9 * Math.sin(k)); }
+  x.fillStyle = "rgba(0,0,0,0.35)";
+  for (const [cx, cy, r] of cocci) { x.beginPath(); x.arc(cx + 1.6, cy + 2, r + 1, 0, 7); x.fill(); }
+  gx.fillStyle = "#fff";
+  for (const [cx, cy, r] of cocci) {
+    const g2 = x.createRadialGradient(cx - r * 0.3, cy - r * 0.3, 0.5, cx, cy, r);
+    g2.addColorStop(0, "#ececec"); g2.addColorStop(0.7, "#c4c4c4"); g2.addColorStop(1, "#a8a8a8");
+    x.fillStyle = g2; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill();
+    gx.beginPath(); gx.arc(cx, cy, r, 0, 7); gx.fill();
+  }
+  const pts = [];
+  const pm = document.createElement("canvas"); pm.width = W; pm.height = IH; const px = pm.getContext("2d");
+  for (let k = 0; k < particles; k++) {
+    const cx = 150 + R() * (W - 300), cy = 120 + R() * (IH - 240), n = 7, poly = [];
+    for (let j = 0; j < n; j++) { const a = (j / n) * 6.28 + R() * 0.5, rr = 22 + R() * 18; poly.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+    for (const ctx of [x, px]) { ctx.beginPath(); poly.forEach(([a, b], j) => (j ? ctx.lineTo(a, b) : ctx.moveTo(a, b))); ctx.closePath(); }
+    x.fillStyle = "#e2e2e2"; x.fill(); x.strokeStyle = "#ffffff"; x.lineWidth = 2; x.stroke(); px.fillStyle = "#fff"; px.fill();
+    const xs = poly.map((q) => q[0]), ys = poly.map((q) => q[1]);
+    pts.push({ x0: Math.min(...xs) - 4, y0: Math.min(...ys) - 4, x1: Math.max(...xs) + 4, y1: Math.max(...ys) + 4 });
   }
   const id = x.getImageData(0, 0, W, IH), d = id.data;
-  for (let i = 0; i < d.length; i += 4) { const nz = (R() + R() + R() - 1.5) * 26; for (let k = 0; k < 3; k++) d[i + k] = d[i + k] + nz; }
+  for (let i = 0; i < d.length; i += 4) { const nz = (R() + R() + R() - 1.5) * 24; for (let k = 0; k < 3; k++) d[i + k] = d[i + k] + nz; }
   x.putImageData(id, 0, 0);
   x.fillStyle = "#000"; x.fillRect(0, IH, W, BAR);
-  x.fillStyle = "#fff"; x.fillRect(0, IH, W, 2);
-  x.font = "15px monospace"; x.fillText("EHT = 5.00 kV   WD = 8.4 mm   Mag = 12.00 K X   Signal A = SE2", 16, IH + 26);
-  x.fillText(label + "  ·  SYNTHETIC EXAMPLE", 16, IH + 50);
-  x.fillRect(W - 140, IH + 20, 80, 8); x.fillText("2 µm", W - 120, IH + 50);
-  const rgba = x.getImageData(0, 0, W, H).data;
-  return makeImage(label + " (example).png", rgba, W, H, { nm: 25, src: "Example image, 25 nm/px (scale bar 2 µm = 80 px)" });
+  x.fillStyle = "#fff"; x.font = "14px monospace";
+  x.fillText("HV 10.00 kV   mag 1 000 x   WD 10.1 mm   det ETD   HFW 85.3 µm", 14, IH + 28);
+  x.fillText(label + " · SYNTHETIC EXAMPLE", 14, IH + 52);
+  x.fillRect(W - 170, IH + 22, 120, 6); x.fillText("10 µm", W - 132, IH + 52);
+  const gd = gx.getImageData(0, 0, W, IH).data, pd = px.getImageData(0, 0, W, IH).data;
+  const inBox = (i) => { const xx = i % W, yy = (i - xx) / W; return pts.some((b) => xx >= Math.floor(b.x0) && xx < Math.ceil(b.x1) && yy >= Math.floor(b.y0) && yy < Math.ceil(b.y1)); };
+  let cov = 0, ev = 0; for (let i = 0; i < W * IH; i++) { if (pd[i * 4] > 127 || (pts.length && inBox(i))) continue; ev++; if (gd[i * 4] > 127) cov++; }
+  return { w: W, h: H, rgba: x.getImageData(0, 0, W, H).data, truth: (cov / ev) * 100, pts };
 }
 function loadSamples() {
-  const a = synth(7, 6, 14, 55, "Control 24 h"); a.group = "Control";
-  const b = synth(23, 2, 6, 38, "Treated 24 h"); b.group = "Treated";
-  state.images = state.images.filter((i) => !/\(example\)/.test(i.name));
-  state.images.unshift(a, b);
-  select(0); renderStrip(); enqueueAll();
+  const defs = [
+    ["A03_apical_2", 11, 120, 60, 0, 101],
+    ["C05_middle_1", 7, 70, 70, 0, 202],
+    ["E02_coronal_3", 0, 0, 40, 2, 303],
+  ];
+  state.images = state.images.filter((i) => !i.example);
+  const made = defs.map(([nm, nc, cr, sc, pa, seed]) => {
+    const gen = () => synthDentine(seed, nc, cr, sc, pa, nm);
+    const d = gen();
+    const img = newImage(nm + " (example)", d, { nm: 83.3, hfw: 85.3, src: "Example image: 83.3 nm/px, HFW 85.3 µm" }, { gen, example: true, truth: d.truth });
+    img.rects = d.pts;
+    return img;
+  });
+  state.images.unshift(...made);
+  sortImages(); select(state.images.indexOf(made[0])); renderStrip(); enqueueAll();
 }
 
-// ---------- queue ----------
-let settingsVer = 0;
+// ---------- analysis queue ----------
 function enqueueAll() {
   const cur = state.images[state.cur];
-  state.queue = state.images.filter((i) => i.ver !== settingsVer);
-  if (cur) { state.queue = state.queue.filter((i) => i !== cur); if (cur.ver !== settingsVer) state.queue.unshift(cur); }
+  state.queue = state.images.filter((i) => i.ver !== settingsVer && i !== cur);
+  if (cur && cur.ver !== settingsVer) state.queue.unshift(cur);
   pump();
+}
+async function runOne(img) {
+  await ensureData(img);
+  const r = analyze(img); img.res = r; img.sum = r.summary; img.ver = settingsVer; img.err = null;
 }
 function pump() {
   if (state.running) return;
   const img = state.queue.shift();
-  if (!img) { busy(false); return; }
-  if (!state.images.includes(img)) return pump();
-  state.running = true; busy(true, "Analyzing " + img.name + "…");
-  setTimeout(() => {
-    try { img.res = analyze(img); img.ver = settingsVer; img.err = null; }
-    catch (e) { img.err = String(e && e.message || e); console.error(e); }
+  if (!img) { busy(false); renderAll(); return; }
+  if (!state.images.includes(img) || img.ver === settingsVer) return pump();
+  state.running = true;
+  const left = state.queue.length;
+  busy(true, `Scoring ${img.name}${left ? ` · ${left} left` : ""}`);
+  setTimeout(async () => {
+    try { await runOne(img); } catch (e) { img.err = String((e && e.message) || e); console.error(e); }
     state.running = false;
-    if (img === state.images[state.cur]) { renderViewer(); renderSummary(); renderCharts(); }
-    renderTables(); renderGroupChart(); renderStrip();
+    if (img === state.images[state.cur]) { renderViewer(); renderScore(); }
+    if (!state.queue.length || state.queue.length % 10 === 0) { renderStrip(); renderResults(); renderCharts(); }
     pump();
-  }, 20);
+  }, 10);
 }
 function invalidate(img) { img.ver = -1; enqueueAll(); }
 
+// ---------- aggregation ----------
+const finalScore = (i) => (i.override ? +i.override : i.sum ? i.sum.score : null);
+const fresh = (i) => i.sum && i.ver === settingsVer;
+function median(a) { const s = [...a].sort((x, y) => x - y), n = s.length; if (!n) return NaN; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; }
+function quantile(a, q) { const s = [...a].sort((x, y) => x - y); if (!s.length) return NaN; const p = (s.length - 1) * q, lo = Math.floor(p), hi = Math.ceil(p); return s[lo] + (s[hi] - s[lo]) * (p - lo); }
+const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : NaN);
+const sd = (a) => { if (a.length < 2) return NaN; const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1)); };
+function thirdsTable() {
+  const map = new Map();
+  for (const i of state.images) {
+    if (i.kind !== "score" || !i.sample || !i.third || !fresh(i) || !isFinite(i.sum.coverage)) continue;
+    const k = i.sample + "|" + i.third;
+    if (!map.has(k)) map.set(k, { sample: i.sample, group: i.group, third: i.third, pts: [] });
+    map.get(k).pts.push(i);
+  }
+  for (const t of map.values()) {
+    const sc = t.pts.map(finalScore), cv = t.pts.map((i) => i.sum.coverage);
+    t.cov = mean(cv);
+    t.score = S.comb === "median" ? median(sc) : S.comb === "max" ? Math.max(...sc) : scoreOf(t.cov);
+  }
+  return [...map.values()];
+}
+function sampleRows() {
+  const thirds = thirdsTable(), by = new Map();
+  for (const t of thirds) { if (!by.has(t.sample)) by.set(t.sample, { sample: t.sample, group: t.group, t: {} }); by.get(t.sample).t[t.third] = t; }
+  return [...by.values()].sort((a, b) => (a.sample < b.sample ? -1 : 1));
+}
+function groupRows() {
+  const thirds = thirdsTable(), rows = [];
+  for (const g of Object.keys(GROUPS)) for (const th of [...THIRDS, "All thirds"]) {
+    const ts = thirds.filter((t) => t.group === g && (th === "All thirds" || t.third === th));
+    if (!ts.length) continue;
+    const sc = ts.map((t) => t.score), cv = ts.map((t) => t.cov);
+    const cnt = [1, 2, 3, 4].map((s) => sc.filter((v) => Math.round(v) === s).length);
+    rows.push({ g, th, n: new Set(ts.map((t) => t.sample)).size, nThirds: ts.length, med: median(sc), q1: quantile(sc, 0.25), q3: quantile(sc, 0.75), cnt, cm: mean(cv), cs: sd(cv) });
+  }
+  return rows;
+}
+function agreement() {
+  const pairs = state.images.filter((i) => i.kind === "score" && i.override && fresh(i) && i.sum.score).map((i) => [i.sum.score, +i.override]);
+  const n = pairs.length, M = [0, 1, 2, 3].map(() => [0, 0, 0, 0]);
+  for (const [a, b] of pairs) M[a - 1][b - 1]++;
+  if (!n) return { n, M };
+  const exact = pairs.filter(([a, b]) => a === b).length / n, within1 = pairs.filter(([a, b]) => Math.abs(a - b) <= 1).length / n;
+  const rs = M.map((r) => r.reduce((s, v) => s + v, 0)), cs = [0, 1, 2, 3].map((j) => M.reduce((s, r) => s + r[j], 0));
+  const kappa = (w) => { let o = 0, e = 0; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { const d = w(i, j); o += d * M[i][j]; e += d * (rs[i] * cs[j]) / n; } return e ? 1 - o / e : NaN; };
+  return { n, M, exact, within1, kLin: kappa((i, j) => Math.abs(i - j)), kQuad: kappa((i, j) => (i - j) ** 2), kUn: kappa((i, j) => (i === j ? 0 : 1)) };
+}
+
 // ---------- rendering ----------
 const cBase = $("#cBase"), cOver = $("#cOver"), cUI = $("#cUI");
-function select(i) {
-  state.cur = i; state.hover = 0; state.cal = null; $("#calBox").hidden = true; $("#calBtn").classList.remove("on");
-  syncImageFields(); renderStrip(); renderViewer(); renderSummary(); renderCharts(); renderTables();
-  const img = state.images[i]; if (img && img.ver !== settingsVer) enqueueAll();
+const f1 = (v, d = 1) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed(d));
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pill = (s) => (s == null || !isFinite(s) ? '<span class="pill p0">–</span>' : `<span class="pill p${Math.round(s)}">${Number.isInteger(s) ? s : s.toFixed(1)}</span>`);
+function renderAll() { renderStrip(); renderViewer(); renderScore(); renderResults(); renderCharts(); }
+async function select(i) {
+  state.cur = i; state.hover = 0; setTool(null);
+  const img = state.images[i];
+  syncImageFields(); renderStrip(); renderResults();
+  if (!img) { renderViewer(); renderScore(); return; }
+  if (!img.data || !img.res || img.ver !== settingsVer) {
+    busy(true, "Loading " + img.name + "…");
+    try { await ensureData(img); if (img.ver !== settingsVer || !img.res) { img.res = analyze(img); img.sum = img.res.summary; img.ver = settingsVer; img.err = null; } }
+    catch (e) { img.err = String((e && e.message) || e); }
+    busy(false);
+  }
+  if (state.images[state.cur] !== img) return;
+  renderViewer(); renderScore(); renderStrip(); renderResults(); renderCharts();
 }
 function renderStrip() {
   const el = $("#strip"); el.innerHTML = "";
   state.images.forEach((img, i) => {
     const b = document.createElement("button"); b.type = "button"; b.className = "thumb" + (i === state.cur ? " active" : "");
-    const cv = document.createElement("canvas"); cv.width = 240; cv.height = 168;
-    const cx = cv.getContext("2d"); const s = Math.max(240 / img.w, 168 / img.h);
-    cx.drawImage(img.src, (240 - img.w * s) / 2, (168 - img.h * s) / 2, img.w * s, img.h * s);
+    const cv = document.createElement("canvas"); cv.width = 240; cv.height = 168; cv.getContext("2d").drawImage(img.thumb, 0, 0);
     const nm = document.createElement("span"); nm.className = "tn"; nm.textContent = img.name; nm.title = img.name;
     const g = document.createElement("span"); g.className = "tg";
-    const cov = img.res && img.ver === settingsVer ? (img.res.summary.coverage * 100).toFixed(1) + "%" : img.err ? "error" : "…";
-    g.innerHTML = `<span></span><span class="num">${cov}</span>`; g.firstChild.textContent = img.group || "No group";
-    b.append(cv, nm, g); b.onclick = () => select(i); el.appendChild(b);
+    const lbl = document.createElement("span"); lbl.textContent = [img.sample, img.third, img.point && "p" + img.point].filter(Boolean).join(" · ") || "Unassigned";
+    const right = document.createElement("span");
+    right.innerHTML = img.kind === "tubule" ? '<span class="pill p0">T</span>' : img.err ? '<span class="pill p0">!</span>' : fresh(img) ? pill(finalScore(img)) : '<span class="pill p0">…</span>';
+    g.append(lbl, right); b.append(cv, nm, g); b.onclick = () => select(i); el.appendChild(b);
   });
   const add = document.createElement("label"); add.className = "thumb"; add.htmlFor = "file";
   add.style.cssText = "justify-content:center;align-items:center;color:var(--muted);min-height:130px;border-style:dashed";
   add.textContent = "+ Add images"; el.appendChild(add);
-  const groups = [...new Set(state.images.map((i) => i.group).filter(Boolean))];
-  $("#groupList").innerHTML = groups.map((g) => `<option value="${esc(g)}"></option>`).join("");
 }
-function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function renderViewer() {
   const img = state.images[state.cur];
   $("#emptyMsg").hidden = !!img; $("#cbox").hidden = !img;
-  if (!img) return;
+  if (!img || !img.data) return;
   for (const c of [cBase, cOver, cUI]) { if (c.width !== img.w) c.width = img.w; if (c.height !== img.h) c.height = img.h; }
   const cbox = $("#cbox"); cbox.classList.toggle("native", state.native); cbox.style.width = state.native ? img.w + "px" : "100%";
-  const bx = cBase.getContext("2d"), ox = cOver.getContext("2d");
-  ox.clearRect(0, 0, img.w, img.h);
-  const r = img.res && img.res.W === img.w && img.res.H === img.h - img.excl ? img.res : null;
-  if (state.view === "original" || !r || state.view === "overlay") bx.putImageData(img.disp, 0, 0);
-  if (r && (state.view === "processed" || state.view === "mask")) {
-    const id = new ImageData(img.w, img.h); id.data.set(img.disp.data);
-    for (let i = 0; i < r.W * r.H; i++) { const v = state.view === "mask" ? (r.lab[i] ? 255 : 0) : r.norm[i]; const j = i * 4; id.data[j] = id.data[j + 1] = id.data[j + 2] = v; }
+  const bx = cBase.getContext("2d"), ox = cOver.getContext("2d"); ox.clearRect(0, 0, img.w, img.h);
+  const r = img.res && img.res.H === img.h - img.excl ? img.res : null;
+  if (!r || state.view === "original" || state.view === "overlay") bx.putImageData(img.data.disp, 0, 0);
+  else {
+    const id = new ImageData(img.w, img.h); id.data.set(img.data.disp.data);
+    for (let i = 0; i < r.W * r.H; i++) { const L = r.lab[i]; const v = state.view === "mask" ? (L && !r.byL[L].excluded ? 255 : 0) : r.norm[i]; const j = i * 4; id.data[j] = id.data[j + 1] = id.data[j + 2] = v; }
     bx.putImageData(id, 0, 0);
   }
   if (r && state.view === "overlay") {
@@ -874,9 +907,8 @@ function renderViewer() {
         const L = lab[i]; if (!L) continue;
         const o = r.byL[L], x = i % W, y = (i - x) / W, j = i * 4;
         const edge = x === 0 || x === W - 1 || y === 0 || y === r.H - 1 || lab[i - 1] !== L || lab[i + 1] !== L || lab[i - W] !== L || lab[i + W] !== L;
-        let col = [150, 150, 150];
-        if (o) col = o.excluded ? [255, 90, 90] : o.type === "aggregate" ? [74, 168, 255] : [255, 176, 46];
-        d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2]; d[j + 3] = edge ? 255 : o && o.excluded ? 110 : 62;
+        const col = o.excluded ? [255, 90, 90] : [255, 176, 46];
+        d[j] = col[0]; d[j + 1] = col[1]; d[j + 2] = col[2]; d[j + 3] = edge ? 255 : o.excluded ? 120 : 80;
       }
       for (let i = r.W * r.H * 4; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = 40; d[i + 3] = 170; }
       r.overlay = od;
@@ -889,296 +921,346 @@ function drawUI() {
   const img = state.images[state.cur]; const ux = cUI.getContext("2d"); ux.clearRect(0, 0, cUI.width, cUI.height);
   if (!img) return;
   const scale = img.w / (cUI.getBoundingClientRect().width || img.w), lw = Math.max(1, 2 * scale);
+  ux.setLineDash([]);
+  const rects = state.rect && state.rect.drag ? [...img.rects, state.rect.r] : img.rects;
+  for (const rc of rects) {
+    const x0 = Math.min(rc.x0, rc.x1), y0 = Math.min(rc.y0, rc.y1), w = Math.abs(rc.x1 - rc.x0), h = Math.abs(rc.y1 - rc.y0);
+    ux.fillStyle = "rgba(255,90,90,0.22)"; ux.fillRect(x0, y0, w, h);
+    ux.strokeStyle = "#ff5a5a"; ux.lineWidth = lw; ux.strokeRect(x0, y0, w, h);
+    ux.save(); ux.beginPath(); ux.rect(x0, y0, w, h); ux.clip(); ux.strokeStyle = "rgba(255,90,90,0.5)"; ux.lineWidth = lw * 0.6;
+    for (let k = -h; k < w; k += 14 * scale) { ux.beginPath(); ux.moveTo(x0 + k, y0 + h); ux.lineTo(x0 + k + h, y0); ux.stroke(); } ux.restore();
+  }
   const r = img.res;
   if (r && state.hover && r.byL[state.hover] && state.view !== "original") {
-    const o = r.byL[state.hover];
-    ux.save(); ux.translate(o.cx, o.cy); ux.rotate(o.angle);
-    ux.strokeStyle = "#ffffff"; ux.lineWidth = lw; ux.setLineDash([4 * scale, 3 * scale]);
-    ux.beginPath(); ux.ellipse(0, 0, o.major / 2 + 3 * scale, o.minor / 2 + 3 * scale, 0, 0, Math.PI * 2); ux.stroke(); ux.restore();
+    const o = r.byL[state.hover], rad = Math.sqrt(o.area / Math.PI) + 6 * scale;
+    ux.strokeStyle = "#fff"; ux.lineWidth = lw; ux.setLineDash([4 * scale, 3 * scale]); ux.beginPath(); ux.arc(o.cx, o.cy, rad, 0, 7); ux.stroke(); ux.setLineDash([]);
   }
   if (state.cal && state.cal.a) {
-    const { a, b } = state.cal; ux.strokeStyle = "#ffd28a"; ux.lineWidth = lw * 1.5; ux.setLineDash([]);
+    const { a, b } = state.cal; ux.strokeStyle = "#ffd28a"; ux.lineWidth = lw * 1.5;
     ux.beginPath(); ux.moveTo(a.x, a.y); ux.lineTo(b.x, b.y); ux.stroke();
     const t = 8 * scale; ux.beginPath(); ux.moveTo(a.x, a.y - t); ux.lineTo(a.x, a.y + t); ux.moveTo(b.x, b.y - t); ux.lineTo(b.x, b.y + t); ux.stroke();
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
     ux.font = `${Math.round(13 * scale)}px ui-monospace, monospace`; ux.fillStyle = "#ffd28a";
-    ux.fillText(len.toFixed(1) + " px", Math.min(a.x, b.x), Math.min(a.y, b.y) - 10 * scale);
+    ux.fillText(Math.hypot(b.x - a.x, b.y - a.y).toFixed(1) + " px", Math.min(a.x, b.x), Math.min(a.y, b.y) - 10 * scale);
   }
   if (img.excl && state.view === "overlay") {
     ux.font = `${Math.round(12 * scale)}px ui-monospace, monospace`; ux.fillStyle = "#bbbbbb"; ux.textAlign = "center";
     ux.fillText("data bar · not analyzed", img.w / 2, img.h - img.excl / 2 + 4 * scale); ux.textAlign = "start";
   }
 }
-const f1 = (v, d = 1) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed(d));
-const fInt = (v) => (v == null || !isFinite(v) ? "—" : Math.round(v).toLocaleString("en-US"));
-function fDensity(v) {
-  if (!isFinite(v)) return "—"; if (v < 1e4) return fInt(v);
-  const e = Math.floor(Math.log10(v)), sup = String(e).split("").map((d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[d]).join("");
-  return (v / 10 ** e).toFixed(2) + "×10" + sup;
+function bandHTML(cov) {
+  const seg = [[0, 5, 1], [5, 33.5, 2], [33.5, 66.5, 3], [66.5, 100, 4]];
+  return `<div class="band" aria-hidden="true"><div class="bar">${seg.map(([a, b, s]) => `<i style="width:${b - a}%;background:var(--s${s})"></i>`).join("")}</div>
+    ${isFinite(cov) ? `<div class="mk" style="left:${Math.min(100, Math.max(0, cov))}%"></div>` : ""}
+    ${[5, 33, 66, 100].map((v) => `<span class="tk" style="left:${v === 100 ? 97 : v}%">${v}%</span>`).join("")}</div>`;
 }
-function rWord(R) { return !isFinite(R) ? "" : R < 0.85 ? "clustered" : R > 1.15 ? "evenly spread" : "random"; }
-function renderSummary() {
-  const el = $("#summary"), img = state.images[state.cur];
-  if (!img) { el.innerHTML = '<h3>Reading</h3><p class="caveat">No image selected.</p>'; return; }
-  if (img.err) { el.innerHTML = `<h3>Reading</h3><p class="err">Analysis failed: ${esc(img.err)}</p>`; return; }
-  if (!img.res) { el.innerHTML = '<h3>Reading</h3><p class="caveat">Analyzing…</p>'; return; }
-  const s = img.res.summary, u = s.unit, u2 = u + "²";
+function renderScore() {
+  const el = $("#scorecard"), img = state.images[state.cur];
+  if (!img) { el.innerHTML = '<h3>Score</h3><p class="caveat">No image selected.</p>'; return; }
+  if (img.err) { el.innerHTML = `<h3>Score</h3><p class="err">Could not analyze this image: ${esc(img.err)}</p>`; return; }
+  if (!img.sum) { el.innerHTML = '<h3>Score</h3><p class="caveat">Analyzing…</p>'; return; }
+  const s = img.sum, u = img.nm ? "µm²" : "";
+  const meta = `<dl class="kv">
+      <dt>Evaluated area</dt><dd>${f1(s.evaluatedPct, 1)}% of field${isFinite(s.evaluatedArea) ? ` · ${f1(s.evaluatedArea, 0)} ${u}` : ""}</dd>
+      <dt>Excluded</dt><dd>${s.rectPct > 0 ? f1(s.rectPct, 1) + "% area" : "no areas"} · ${s.nExcluded} object(s)</dd>
+      <dt>Biofilm patches</dt><dd>${s.nPatch}</dd>
+      <dt>Largest patch</dt><dd>${isFinite(s.largest) ? f1(s.largest, 1) + " µm²" : "—"}</dd>
+      <dt>Threshold</dt><dd>${esc(s.thrSrc)}</dd>
+      ${img.hfw ? `<dt>Horizontal field width</dt><dd>${f1(img.hfw, 1)} µm</dd>` : ""}
+      ${img.truth != null ? `<dt>Example ground truth</dt><dd>${f1(img.truth, 1)}% → score ${scoreOf(img.truth)}</dd>` : ""}
+    </dl>`;
+  if (img.kind === "tubule") {
+    el.innerHTML = `<h3>Tubule occlusion check</h3><p class="caveat">This field is not scored for biofilm. Record whether dentinal tubules are blocked by zirconia particles in the Sample record.</p>${meta}`;
+    return;
+  }
+  const fs = finalScore(img);
   el.innerHTML = `
-    <h3>Reading</h3>
-    <div class="stagechip"><i></i>${s.stage}</div>
-    <div class="bigs">
-      <div class="big"><b>${f1(s.coverage * 100)}%</b><span>Coverage</span></div>
-      <div class="big"><b>${fInt(s.est)}</b><span>Est. cells</span></div>
-      <div class="big"><b>${fDensity(s.density)}</b><span>Cells / mm²</span></div>
+    <h3>Biofilm score</h3>
+    <div class="scorehead">
+      <div class="scorebig p${fs}">${fs}</div>
+      <div class="scoremeta"><b>${f1(s.coverage, 1)}%</b><span>biofilm coverage · auto score ${s.score}${img.override ? ` · examiner ${img.override}` : ""}</span></div>
     </div>
-    <dl class="kv">
-      <dt>Objects detected</dt><dd>${s.nObj} <span style="color:var(--muted)">(${s.nSingle} single · ${s.nAgg} aggregate)</span></dd>
-      <dt>Cells in aggregates</dt><dd>${f1(s.pctAgg * 100)}%</dd>
-      <dt>Cell length</dt><dd>${f1(s.len, 2)} ± ${f1(s.lenSd, 2)} ${u}</dd>
-      <dt>Cell width</dt><dd>${f1(s.wid, 2)} ± ${f1(s.widSd, 2)} ${u}</dd>
-      <dt>Aspect ratio</dt><dd>${f1(s.ar, 2)}</dd>
-      <dt>Morphotypes</dt><dd>${s.morph.rod} rod · ${s.morph.coccoid} coccoid · ${s.morph.filament} filament</dd>
-      <dt>Largest aggregate</dt><dd>${s.largest ? f1(s.largest, 1) + " " + u2 : "—"}</dd>
-      <dt>Clark–Evans R</dt><dd>${f1(s.R, 2)} ${rWord(s.R)}</dd>
-      <dt>Single-cell area</dt><dd>${f1(s.ref, u === "µm" ? 2 : 0)} ${u2}</dd>
-      <dt>Field analyzed</dt><dd>${f1(s.fieldArea, u === "µm" ? 0 : 0)} ${u2}</dd>
-      <dt>Threshold</dt><dd>Otsu ${s.otsu} → ${s.thr}</dd>
-    </dl>
-    ${u === "px" ? '<p class="err">Not calibrated: sizes are in pixels and density is unavailable.</p>' : ""}
-    ${s.nExcluded ? `<p class="caveat">${s.nExcluded} object(s) excluded by you.</p>` : ""}
-    <p class="caveat">Stage is a heuristic from 2-D coverage and aggregation. Confirm thickness and matrix with an orthogonal method.</p>`;
+    ${bandHTML(s.coverage)}
+    ${s.borderline ? `<div class="warnbox">Borderline: within 3 points of a cut-off. Check this field by eye.</div>` : ""}
+    ${img.override && +img.override !== s.score ? `<div class="warnbox">Your score (${img.override}) differs from the automatic score (${s.score}). Your score is used in all tables.</div>` : ""}
+    <div class="row"><label for="fOverride">Examiner score</label>
+      <select id="fOverride"><option value="">Use automatic (${s.score})</option><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+    ${meta}`;
+  const ov = $("#fOverride"); ov.value = img.override;
+  ov.onchange = () => { img.override = ov.value; renderScore(); renderStrip(); renderResults(); renderCharts(); };
 }
 function syncImageFields() {
   const img = state.images[state.cur];
   $("#imgName").textContent = img ? `${img.name} · ${img.w}×${img.h} px` : "No image";
-  $("#group").value = img ? img.group : "";
-  $("#nm").value = img && img.nm ? +img.nm.toFixed(4) : "";
+  $("#fSample").value = img ? img.sample : ""; $("#fGroup").value = img ? img.group : ""; $("#fThird").value = img ? img.third : "";
+  $("#fPoint").value = img ? img.point : ""; $("#fKind").value = img ? img.kind : "score"; $("#fTubule").value = img ? img.tubule : "";
+  $("#tubWrap").hidden = !img || img.kind !== "tubule";
+  $("#nm").value = img && img.nm ? +img.nm.toFixed(3) : "";
   $("#excl").value = img ? img.excl : "";
-  $("#calSrc").innerHTML = img ? `Source: <b>${esc(img.calSrc)}</b>${img.nm ? ` · field width ${f1(img.w * img.nm / 1000, 1)} µm` : ""}` : "";
+  $("#calSrc").innerHTML = img ? `Source: <b>${esc(img.calSrc)}</b>${img.nm ? ` · field width ${f1((img.w * img.nm) / 1000, 1)} µm` : ""}<br>Data bar: ${esc(img.barSrc)}` : "";
 }
 function syncSettings() {
-  $("#sPol").value = S.pol; $("#sBg").value = S.bg; $("#sSig").value = S.sig; $("#sOff").value = S.off; $("#sOpen").value = S.open;
-  $("#sMin").value = S.min; $("#sFill").checked = S.fill; $("#sSplit").checked = S.split; $("#sH").value = S.h; $("#sEdge").checked = S.edge; $("#sRef").value = S.ref;
+  $("#sMode").value = S.mode; $("#sFix").value = S.fix; $("#sOff").value = S.off; $("#sPol").value = S.pol; $("#sBg").value = S.bg;
+  $("#sSig").value = S.sig; $("#sOpen").value = S.open; $("#sMin").value = S.min; $("#sFill").checked = S.fill; $("#sComb").value = S.comb;
+  $("#oFix").textContent = S.fix + " grey levels"; $("#oOff").textContent = (S.off > 0 ? "+" : "") + S.off;
   $("#oBg").textContent = S.bg ? S.bg + " px" : "off"; $("#oSig").textContent = S.sig.toFixed(1) + " px";
-  $("#oOff").textContent = (S.off > 0 ? "+" : "") + S.off; $("#oH").textContent = S.h.toFixed(2) + " px"; $("#sH").disabled = !S.split;
+  $("#fixWrap").hidden = S.mode !== "fixed"; $("#offWrap").hidden = S.mode !== "otsu"; $("#absWrap").hidden = S.mode !== "abs"; $("#bgWrap").hidden = S.mode === "abs";
+  $("#sAbs").value = S.abs; $("#oAbs").textContent = String(S.abs); $("#sFlat").checked = S.flat;
+}
+
+// ---------- results tables ----------
+const TABLES = {
+  groups() {
+    const head = ["Group", "Irrigation", "Root third", "n roots", "Median score", "Q1", "Q3", "Score 1", "Score 2", "Score 3", "Score 4", "Mean coverage (%)", "SD coverage"];
+    const rows = groupRows().map((r) => [r.g, GROUPS[r.g], r.th, r.n, f1(r.med, 1), f1(r.q1, 2), f1(r.q3, 2), ...r.cnt, f1(r.cm, 2), f1(r.cs, 2)]);
+    return { head, rows, left: 3, empty: "Assign sample IDs (e.g. B07), groups and root thirds to scored images to fill this table." };
+  },
+  samples() {
+    const head = ["Sample", "Group", "Irrigation", "Coronal_score", "Middle_score", "Apical_score", "Coronal_cov", "Middle_cov", "Apical_cov", "Points C/M/A"];
+    const rows = sampleRows().map((s) => {
+      const t = (th) => s.t[th];
+      const pts = THIRDS.map((th) => (t(th) ? t(th).pts.length : 0));
+      return [s.sample, s.group, GROUPS[s.group] || "", ...THIRDS.map((th) => (t(th) ? f1(t(th).score, Number.isInteger(t(th).score) ? 0 : 1) : "")), ...THIRDS.map((th) => (t(th) ? f1(t(th).cov, 2) : "")), pts.join("/")];
+    });
+    return { head, rows, left: 3, flagCol: 9, empty: "No scored samples yet." };
+  },
+  points() {
+    const head = ["Image", "Sample", "Group", "Third", "Point", "Coverage (%)", "Auto score", "Examiner score", "Final score", "Borderline", "Evaluated area (%)", "Excluded objects"];
+    const rows = state.images.filter((i) => i.kind === "score").map((i) => {
+      const s = fresh(i) ? i.sum : null;
+      return [i.name, i.sample, i.group, i.third, i.point, s ? f1(s.coverage, 2) : i.err ? "error" : "…", s ? s.score : "", i.override, s ? finalScore(i) : "", s && s.borderline ? "yes" : "", s ? f1(s.evaluatedPct, 1) : "", s ? s.nExcluded : ""];
+    });
+    return { head, rows, left: 5, click: state.images.filter((i) => i.kind === "score"), empty: "No scored images." };
+  },
+  agree() {
+    const a = agreement();
+    const head = ["Automatic ↓ / Examiner →", "1", "2", "3", "4"];
+    return { head, rows: a.M.map((r, i) => [String(i + 1), ...r]), left: 1, a };
+  },
+  tubules() {
+    const head = ["Image", "Sample", "Group", "Third", "Tubules"];
+    const lab = { open: "Open", partial: "Partly occluded", occluded: "Occluded by particles", "": "Not assessed" };
+    const imgs = state.images.filter((i) => i.kind === "tubule");
+    return { head, rows: imgs.map((i) => [i.name, i.sample, i.group, i.third, lab[i.tubule]]), left: 5, click: imgs, empty: "No images marked as tubule occlusion checks. Set “Image use” in the Sample record." };
+  },
+};
+function renderResults() {
+  const T = TABLES[state.tab](), t = $("#resTable"), cur = state.images[state.cur];
+  const ab = $("#agreeBox");
+  if (state.tab === "agree") {
+    const a = T.a; ab.hidden = false;
+    ab.innerHTML = a.n ? `<span>Fields with examiner score <b>${a.n}</b></span><span>Exact agreement <b>${f1(a.exact * 100, 1)}%</b></span><span>Within one score <b>${f1(a.within1 * 100, 1)}%</b></span>
+      <span>Cohen's κ <b>${f1(a.kUn, 3)}</b></span><span>Linear weighted κ <b>${f1(a.kLin, 3)}</b></span><span>Quadratic weighted κ <b>${f1(a.kQuad, 3)}</b></span>`
+      : `<span class="hint">Pick “Examiner score” on fields you have scored by eye. Agreement with the automatic score appears here.</span>`;
+  } else ab.hidden = true;
+  t.innerHTML = `<thead><tr>${T.head.map((h, i) => `<th class="${i < T.left ? "l" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${
+    T.rows.length ? T.rows.map((r, k) => {
+      const img = T.click && T.click[k];
+      return `<tr class="${img ? "click" : ""} ${img && img === cur ? "active" : ""}" ${img ? `data-id="${img.id}"` : ""}>${r.map((v, i) => {
+        const flag = (T.flagCol === i && v && v !== "3/3/3") || (state.tab === "points" && i === 9 && v === "yes");
+        return `<td class="${i < T.left ? "l" : ""} ${flag ? "flag" : ""}">${esc(v)}</td>`; }).join("")}</tr>`; }).join("")
+    : `<tr><td class="l" colspan="${T.head.length}">${esc(T.empty || "")}</td></tr>`}</tbody>`;
+  t.querySelectorAll("tr[data-id]").forEach((tr) => (tr.onclick = () => { const i = state.images.findIndex((x) => x.id === +tr.dataset.id); if (i >= 0) { select(i); $("#stage").scrollIntoView({ behavior: "smooth", block: "start" }); } }));
 }
 
 // ---------- charts ----------
 function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
-function niceStep(max, n) { const raw = max / n || 1, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
 function setupCanvas(c) {
   const dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
   c.width = Math.max(1, Math.round(r.width * dpr)); c.height = Math.max(1, Math.round(r.height * dpr));
   const x = c.getContext("2d"); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, r.width, r.height);
   return { x, w: r.width, h: r.height };
 }
-function frame(x, w, h, xmax, ymax, xl, yl, xFmt) {
-  const pad = { l: 44, r: 10, t: 10, b: 34 }, pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
-  const ink = css("--muted"), line = css("--line");
-  x.font = "11px " + css("--font-mono"); x.fillStyle = ink; x.strokeStyle = line; x.lineWidth = 1;
-  const ys = niceStep(ymax, 4);
-  for (let v = 0; v <= ymax + 1e-9; v += ys) { const y = pad.t + ph - (v / ymax) * ph; x.beginPath(); x.moveTo(pad.l, y + 0.5); x.lineTo(pad.l + pw, y + 0.5); x.stroke(); x.textAlign = "right"; x.fillText(+v.toFixed(3), pad.l - 6, y + 4); }
-  if (xmax != null) { const xs = niceStep(xmax, 5); x.textAlign = "center";
-    for (let v = 0; v <= xmax + 1e-9; v += xs) { const px = pad.l + (v / xmax) * pw; x.fillText(xFmt ? xFmt(v) : +v.toFixed(3), px, pad.t + ph + 15); } }
-  x.textAlign = "center"; x.font = "11px " + css("--font-body"); x.fillText(xl, pad.l + pw / 2, h - 4);
-  x.save(); x.translate(11, pad.t + ph / 2); x.rotate(-Math.PI / 2); x.fillText(yl, 0, 0); x.restore();
-  return { pad, pw, ph };
-}
-function histogram(c, vals, opt) {
-  const { x, w, h } = setupCanvas(c);
-  if (!vals.length) { x.fillStyle = css("--muted"); x.font = "12px " + css("--font-body"); x.fillText("No objects to plot", 12, 24); return; }
-  const s = [...vals].sort((a, b) => a - b), top = opt.max || s[Math.min(s.length - 1, Math.floor(s.length * 0.98))] * 1.05 || 1;
-  const nb = 24, bins = new Array(nb).fill(0);
-  for (const v of vals) bins[Math.min(nb - 1, Math.max(0, Math.floor((v / top) * nb)))]++;
-  const ymax = Math.max(...bins) * 1.1 || 1;
-  const { pad, pw, ph } = frame(x, w, h, top, ymax, opt.xl, "Count", opt.xFmt);
-  for (const b of opt.bands || []) { x.fillStyle = b.c; x.fillRect(pad.l + (b.from / top) * pw, pad.t, ((Math.min(b.to, top) - b.from) / top) * pw, ph); }
-  x.fillStyle = css("--accent");
-  const bw = pw / nb;
-  bins.forEach((n, i) => { if (!n) return; const bh = (n / ymax) * ph; x.fillRect(pad.l + i * bw + 1, pad.t + ph - bh, bw - 2, bh); });
-  for (const m of opt.marks || []) { if (m.v > top) continue; const px = pad.l + (m.v / top) * pw; x.strokeStyle = css("--ink"); x.setLineDash([4, 3]); x.beginPath(); x.moveTo(px, pad.t); x.lineTo(px, pad.t + ph); x.stroke(); x.setLineDash([]);
-    x.fillStyle = css("--ink"); x.textAlign = px > pad.l + pw * 0.7 ? "right" : "left"; x.font = "11px " + css("--font-body"); x.fillText(m.label, px + (x.textAlign === "left" ? 4 : -4), pad.t + 12); }
-}
-function renderCharts() {
-  const img = state.images[state.cur], r = img && img.res;
-  const objs = r ? r.objs.filter((o) => !o.excluded && !(S.edge && o.border)) : [];
-  const a2 = r && r.um ? r.um * r.um : 1, u = r && r.um ? "µm²" : "px²";
-  histogram($("#chArea"), objs.map((o) => o.area * a2), { xl: "Object area (" + u + ")", marks: r ? [{ v: r.summary.ref, label: "1 cell" }] : [] });
-  const tint = css("--line");
-  histogram($("#chAR"), objs.filter((o) => o.type === "single").map((o) => o.ar), { xl: "Aspect ratio (length ÷ width)", max: 6,
-    bands: [{ from: 0, to: 1.4, c: hexA(tint, 0.6) }, { from: 3.5, to: 6, c: hexA(tint, 0.6) }],
-    marks: [{ v: 1.4, label: "coccoid │ rod" }, { v: 3.5, label: "rod │ filament" }] });
-}
-function hexA(col, a) { const m = col.match(/^#([0-9a-f]{6})$/i); if (!m) return col; const n = parseInt(m[1], 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
-function renderGroupChart() {
-  const { x, w, h } = setupCanvas($("#chGroup"));
-  const done = state.images.filter((i) => i.res && i.ver === settingsVer);
-  if (!done.length) return;
-  const groups = [...new Set(done.map((i) => i.group || "No group"))];
-  const ymax = Math.max(10, Math.ceil(Math.max(...done.map((i) => i.res.summary.coverage * 100)) * 1.15 / 10) * 10);
-  const { pad, pw, ph } = frame(x, w, h, null, ymax, "", "Coverage (%)");
+function niceStep(max, n) { const raw = max / n || 1, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
+function axes(x, w, h, ymax, ylab, groups, pad) {
+  const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+  x.font = "11px " + css("--font-mono"); x.fillStyle = css("--muted"); x.strokeStyle = css("--line"); x.lineWidth = 1; x.textAlign = "right";
+  const st = ylab === "Root thirds" ? Math.max(1, Math.round(niceStep(ymax, 4))) : niceStep(ymax, 4);
+  for (let v = 0; v <= ymax + 1e-9; v += st) { const y = pad.t + ph - (v / ymax) * ph; x.beginPath(); x.moveTo(pad.l, Math.round(y) + 0.5); x.lineTo(pad.l + pw, Math.round(y) + 0.5); x.stroke(); x.fillText(String(+v.toFixed(2)), pad.l - 6, y + 4); }
+  x.save(); x.translate(12, pad.t + ph / 2); x.rotate(-Math.PI / 2); x.textAlign = "center"; x.font = "11px " + css("--font-body"); x.fillText(ylab, 0, 0); x.restore();
   const gw = pw / groups.length;
-  groups.forEach((g, gi) => {
-    const items = done.filter((i) => (i.group || "No group") === g), cx = pad.l + gw * (gi + 0.5);
-    const m = items.reduce((s, i) => s + i.res.summary.coverage * 100, 0) / items.length;
-    const bh = (m / ymax) * ph;
-    x.fillStyle = hexA(css("--accent"), 0.25); x.fillRect(cx - gw * 0.3, pad.t + ph - bh, gw * 0.6, bh);
-    x.strokeStyle = css("--accent"); x.lineWidth = 2; x.beginPath(); x.moveTo(cx - gw * 0.3, pad.t + ph - bh); x.lineTo(cx + gw * 0.3, pad.t + ph - bh); x.stroke();
-    items.forEach((it, k) => { const v = it.res.summary.coverage * 100, px = cx + (items.length > 1 ? (k / (items.length - 1) - 0.5) * gw * 0.35 : 0), py = pad.t + ph - (v / ymax) * ph;
-      x.fillStyle = it === state.images[state.cur] ? css("--ink") : css("--muted"); x.beginPath(); x.arc(px, py, 4, 0, 7); x.fill(); });
-    x.fillStyle = css("--ink"); x.font = "12px " + css("--font-body"); x.textAlign = "center";
-    x.fillText(trunc(g, Math.max(6, Math.floor(gw / 7))) + ` (n=${items.length})`, cx, h - 8);
-    x.font = "11px " + css("--font-mono"); x.fillText(m.toFixed(1) + "%", cx, pad.t + ph - bh - 6);
-  });
+  groups.forEach((g, i) => { const cx = pad.l + gw * (i + 0.5); x.textAlign = "center"; x.fillStyle = css("--ink"); x.font = "600 12px " + css("--font-body"); x.fillText(g, cx, h - 22);
+    x.fillStyle = css("--muted"); x.font = "10.5px " + css("--font-body"); x.fillText(trunc(GROUPS[g], Math.max(8, Math.floor(gw / 6))), cx, h - 8); });
+  return { pw, ph, gw };
 }
 const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+function emptyChart(x, msg) { x.fillStyle = css("--muted"); x.font = "12px " + css("--font-body"); x.textAlign = "left"; x.fillText(msg, 12, 24); }
+function renderCharts() {
+  const thirds = thirdsTable(), groups = Object.keys(GROUPS).filter((g) => thirds.some((t) => t.group === g));
+  { // score distribution
+    const { x, w, h } = setupCanvas($("#chScore"));
+    if (!groups.length) emptyChart(x, "Assign group, sample and root third to see score distributions.");
+    else {
+      const counts = {}; let ymax = 1;
+      for (const g of groups) for (const th of THIRDS) { const c = [0, 0, 0, 0]; thirds.filter((t) => t.group === g && t.third === th).forEach((t) => c[Math.round(t.score) - 1]++); counts[g + th] = c; ymax = Math.max(ymax, c.reduce((a, b) => a + b, 0)); }
+      ymax = Math.max(2, Math.ceil(ymax * 1.15));
+      const pad = { l: 40, r: 10, t: 28, b: 54 }, { ph, gw } = axes(x, w, h, ymax, "Root thirds", groups, pad);
+      const bw = Math.min(26, (gw * 0.8) / 3);
+      groups.forEach((g, gi) => THIRDS.forEach((th, ti) => {
+        const bx = pad.l + gw * (gi + 0.5) + (ti - 1) * (bw + 3) - bw / 2; let y = pad.t + ph;
+        counts[g + th].forEach((n, s) => { if (!n) return; const hh = (n / ymax) * ph; x.fillStyle = css("--s" + (s + 1)); x.fillRect(bx, y - hh, bw, hh - 1); y -= hh; });
+        x.fillStyle = css("--muted"); x.font = "10px " + css("--font-mono"); x.textAlign = "center"; x.fillText(th[0], bx + bw / 2, pad.t + ph + 12);
+      }));
+      let lx = pad.l; x.font = "11px " + css("--font-body"); x.textAlign = "left";
+      [1, 2, 3, 4].forEach((s) => { x.fillStyle = css("--s" + s); x.fillRect(lx, 8, 11, 11); x.fillStyle = css("--ink"); x.fillText("Score " + s, lx + 15, 17); lx += 70; });
+    }
+  }
+  { // coverage dots with score bands
+    const { x, w, h } = setupCanvas($("#chCov"));
+    if (!groups.length) emptyChart(x, "Assign group, sample and root third to see coverage per root third.");
+    else {
+      const pad = { l: 40, r: 26, t: 12, b: 54 }, pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+      [[0, 5, 1], [5, 33.5, 2], [33.5, 66.5, 3], [66.5, 100, 4]].forEach(([a, b, s]) => {
+        x.globalAlpha = 0.28; x.fillStyle = css("--s" + s); x.fillRect(pad.l, pad.t + ph - (b / 100) * ph, pw, ((b - a) / 100) * ph); x.globalAlpha = 1;
+        x.fillStyle = css("--ink"); x.font = "600 11px " + css("--font-mono"); x.textAlign = "left"; x.fillText(String(s), pad.l + pw + 8, pad.t + ph - (((a + b) / 2) / 100) * ph + 4);
+      });
+      const { gw } = axes(x, w, h, 100, "Biofilm coverage (%)", groups, pad);
+      const R = rng(9);
+      groups.forEach((g, gi) => THIRDS.forEach((th, ti) => {
+        const cx = pad.l + gw * (gi + 0.5) + (ti - 1) * gw * 0.26, ts = thirds.filter((t) => t.group === g && t.third === th);
+        x.fillStyle = css("--ink");
+        ts.forEach((t) => { const y = pad.t + ph - (Math.min(100, t.cov) / 100) * ph; x.globalAlpha = 0.75; x.beginPath(); x.arc(cx + (R() - 0.5) * gw * 0.12, y, 3, 0, 7); x.fill(); x.globalAlpha = 1; });
+        if (ts.length) { const m = mean(ts.map((t) => t.cov)), y = pad.t + ph - (m / 100) * ph; x.strokeStyle = css("--accent"); x.lineWidth = 2.5; x.beginPath(); x.moveTo(cx - gw * 0.1, y); x.lineTo(cx + gw * 0.1, y); x.stroke(); }
+        x.fillStyle = css("--muted"); x.font = "10px " + css("--font-mono"); x.textAlign = "center"; x.fillText(th[0], cx, pad.t + ph + 12);
+      }));
+    }
+  }
+}
 
-// ---------- tables & export ----------
-const IMG_COLS = [
-  ["Image", (i) => i.name], ["Group", (i) => i.group], ["Pixel size (nm)", (i) => (i.nm ? f1(i.nm, 2) : "")],
-  ["Coverage (%)", (s) => f1(s.coverage * 100, 2), 1], ["Objects", (s) => s.nObj, 1], ["Est. cells", (s) => s.est, 1],
-  ["Cells/mm²", (s) => (isFinite(s.density) ? Math.round(s.density) : ""), 1], ["Length (µm)", (s) => (s.unit === "µm" ? f1(s.len, 3) : ""), 1],
-  ["Width (µm)", (s) => (s.unit === "µm" ? f1(s.wid, 3) : ""), 1], ["Aspect ratio", (s) => f1(s.ar, 2), 1], ["Cells in aggregates (%)", (s) => f1(s.pctAgg * 100, 1), 1],
-  ["Largest aggregate (µm²)", (s) => (s.unit === "µm" && s.largest ? f1(s.largest, 2) : ""), 1], ["Clark–Evans R", (s) => f1(s.R, 3), 1], ["Stage", (s) => s.stage, 1],
-];
-function imgRow(i) { const s = i.res && i.res.summary; return IMG_COLS.map(([, f, needS]) => (needS ? (s && i.ver === settingsVer ? f(s) : i.err ? "error" : "…") : f(i))); }
-function groupRows() {
-  const done = state.images.filter((i) => i.res && i.ver === settingsVer), groups = [...new Set(done.map((i) => i.group || "No group"))];
-  const ms = (arr) => { const n = arr.length, m = arr.reduce((a, b) => a + b, 0) / n; const sd = n > 1 ? Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / (n - 1)) : NaN; return [m, sd]; };
-  return groups.map((g) => {
-    const it = done.filter((i) => (i.group || "No group") === g).map((i) => i.res.summary);
-    const cov = ms(it.map((s) => s.coverage * 100)), den = ms(it.map((s) => s.density)), cells = ms(it.map((s) => s.est)), agg = ms(it.map((s) => s.pctAgg * 100)), len = ms(it.map((s) => s.len));
-    return [g, it.length, f1(cov[0], 2), f1(cov[1], 2), isFinite(den[0]) ? Math.round(den[0]) : "", isFinite(den[1]) ? Math.round(den[1]) : "", f1(cells[0], 1), f1(agg[0], 1), f1(len[0], 3)];
-  });
-}
-const GRP_COLS = ["Group", "n images", "Coverage mean (%)", "Coverage SD", "Cells/mm² mean", "Cells/mm² SD", "Est. cells mean", "Cells in aggregates (%)", "Cell length mean"];
-function renderTables() {
-  const t = $("#imgTable");
-  t.innerHTML = `<thead><tr>${IMG_COLS.map((c) => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>${state.images.map((i, k) =>
-    `<tr data-k="${k}" class="${k === state.cur ? "active" : ""}">${imgRow(i).map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>`;
-  t.querySelectorAll("tbody tr").forEach((tr) => (tr.onclick = () => select(+tr.dataset.k)));
-  const g = groupRows();
-  $("#grpTable").innerHTML = `<thead><tr>${GRP_COLS.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${g.length ? g.map((r) => `<tr>${r.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${GRP_COLS.length}">No results yet</td></tr>`}</tbody>`;
-}
-const tsv = (head, rows) => [head, ...rows].map((r) => r.map((v) => String(v).replace(/[\t\n]/g, " ")).join("\t")).join("\n");
+// ---------- copy / export ----------
+const tsv = (head, rows) => [head, ...rows].map((r) => r.map((v) => String(v == null ? "" : v).replace(/[\t\n]/g, " ")).join("\t")).join("\n");
 function copyText(text, what) {
   const fallback = () => { const ta = $("#copybuf"); ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast("Text selected below. Press Ctrl+C (⌘C) to copy."); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => { $("#copybuf").hidden = true; toast(what + " copied. Paste into your spreadsheet."); }, fallback);
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => { $("#copybuf").hidden = true; toast(what + " copied."); }, fallback);
   else fallback();
 }
 function methodsText() {
-  const parts = [];
-  parts.push(`SEM micrographs were analysed in Biofilm SEM Reader (browser-based). The instrument data bar was excluded and pixel size was taken from the image metadata or the scale bar.`);
-  parts.push(S.bg ? `Uneven illumination was corrected with a morphological top-hat (grey opening, radius ${S.bg} px).` : `No background correction was applied.`);
-  parts.push(`Images were smoothed with a Gaussian filter (σ = ${S.sig.toFixed(1)} px) and segmented with Otsu's threshold${S.off ? ` offset by ${S.off > 0 ? "+" : ""}${S.off} grey levels` : ""}, treating cells as ${S.pol === "bright" ? "brighter" : "darker"} than the substrate.`);
-  parts.push(`The binary mask was cleaned by ${S.open ? `morphological opening (${S.open} px), ` : ""}${S.fill ? "filling of small holes, " : ""}and removal of objects smaller than ${S.min} px².`);
-  if (S.split) parts.push(`Touching cells were separated by a marker-controlled watershed on the Euclidean distance transform with h-maxima markers (h = ${S.h} px).`);
-  parts.push(`Surface coverage was the fraction of the analysed field occupied by cells. Cell length and width were estimated from second-moment ellipse fits${S.edge ? " of objects not touching the image border" : ""}. Objects larger than 1.8× the single-cell area (${S.ref ? S.ref + " µm²" : "median object area"}) were classed as aggregates, and cell number was estimated as aggregate area divided by single-cell area. Spatial aggregation was quantified with the Clark–Evans nearest-neighbour index.`);
-  return parts.join(" ");
+  const comb = { median: "the median of the three point scores", meancov: "the index score of the mean coverage of the three points", max: "the highest of the three point scores" }[S.comb];
+  return [
+    "Residual biofilm was quantified on SEM micrographs (1000×) at three points in each of the coronal, middle and apical thirds of every root using Root Canal Biofilm Scorer, a browser-based image analysis tool.",
+    "The instrument data bar was excluded, and areas showing cracks, splitting, anatomical recesses or surfaces not corresponding to the prepared canal wall, together with non-bacterial particles, were excluded from both the biofilm area and the evaluated area.",
+    S.mode === "abs" ? (S.flat ? "Large-scale charging gradients were removed without changing the overall brightness level" : "No background correction was applied") : S.bg ? `Uneven illumination was corrected by subtracting the local dentine level (25th brightness percentile in ${2 * S.bg}-px windows)` : "No background correction was applied",
+    `, images were smoothed with a Gaussian filter (σ = ${S.sig.toFixed(1)} px), and pixels ${S.mode === "abs" ? `brighter than grey level ${S.abs} (8-bit; one threshold for all images, which were acquired with identical accelerating voltage, detector, brightness and contrast)` : S.mode === "fixed" ? `more than ${S.fix} grey levels brighter than the local dentine background (one threshold for all images)` : "above each image's Otsu threshold"} were classed as biofilm${S.open ? ` after morphological opening (${S.open} px)` : ""}; particles smaller than ${S.min} px² were discarded.`,
+    " Biofilm coverage was calculated as the percentage of the evaluated area occupied by biofilm, rounded to the nearest whole percent and scored with the index of Ozses Ozkaya et al. (2017): 1, <5%; 2, 5–33%; 3, 34–66%; 4, 67–100% biofilm coverage.",
+    ` The score of each root third was ${comb}.`,
+    state.images.some((i) => i.override) ? " Automatic scores were verified by the examiner, and agreement was assessed with weighted Cohen's kappa." : "",
+  ].join("");
 }
 
 // ---------- interaction ----------
+function setTool(t) {
+  state.tool = t; state.cal = t === "cal" ? { mode: "draw" } : null; state.rect = null;
+  $("#calBox").hidden = t !== "cal"; $("#calBtn").classList.toggle("on", t === "cal"); $("#rectBtn").classList.toggle("on", t === "rect"); $("#calApply").disabled = true;
+  $("#modeHint").textContent = t === "rect" ? "Drag a box over a crack, split line, recess or unprepared surface. It is removed from the evaluated area." :
+    t === "cal" ? "Drag along the scale bar." : "Click an object to exclude it (zirconia particle, debris). Use “Exclude area” for cracks, splits, recesses and particles sitting in biofilm.";
+  drawUI();
+}
 function toImg(e) { const r = cUI.getBoundingClientRect(); return { x: (e.clientX - r.left) * cUI.width / r.width, y: (e.clientY - r.top) * cUI.height / r.height }; }
 cUI.addEventListener("pointerdown", (e) => {
-  const img = state.images[state.cur]; if (!img) return; const p = toImg(e);
-  if (state.cal && state.cal.mode === "draw") { state.cal.a = p; state.cal.b = { ...p }; state.cal.drag = true; cUI.setPointerCapture(e.pointerId); drawUI(); return; }
+  const img = state.images[state.cur]; if (!img || !img.data) return; const p = toImg(e);
+  if (state.tool === "cal") { state.cal.a = p; state.cal.b = { ...p }; state.cal.drag = true; cUI.setPointerCapture(e.pointerId); drawUI(); return; }
+  if (state.tool === "rect") { state.rect = { drag: true, r: { x0: p.x, y0: p.y, x1: p.x, y1: p.y } }; cUI.setPointerCapture(e.pointerId); drawUI(); return; }
   const r = img.res; if (!r || p.y >= r.H) return;
   const L = r.lab[Math.floor(p.y) * r.W + Math.floor(p.x)]; if (!L || !r.byL[L]) return;
-  const o = r.byL[L];
-  if (o.excluded) img.excluded = img.excluded.filter((q) => { const xi = Math.round(q.x), yi = Math.round(q.y); return !(yi < r.H && r.lab[yi * r.W + xi] === L); });
+  if (!r.byL[L].excluded && r.byL[L].area > 0.02 * r.W * r.H) { toast("This patch joins a large biofilm area, so clicking would exclude all of it. Use “Exclude area” to box the particle instead."); return; }
+  if (r.byL[L].excluded) img.excluded = img.excluded.filter((q) => { const xi = Math.round(q.x), yi = Math.round(q.y); return !(yi < r.H && r.lab[yi * r.W + xi] === L); });
   else img.excluded.push({ x: Math.floor(p.x), y: Math.floor(p.y) });
   invalidate(img);
 });
 cUI.addEventListener("pointermove", (e) => {
-  const img = state.images[state.cur]; if (!img) return; const p = toImg(e);
+  const img = state.images[state.cur]; if (!img || !img.data) return; const p = toImg(e);
   if (state.cal && state.cal.drag) { state.cal.b = e.shiftKey ? p : { x: p.x, y: state.cal.a.y }; drawUI(); return; }
+  if (state.rect && state.rect.drag) { state.rect.r.x1 = p.x; state.rect.r.y1 = p.y; drawUI(); return; }
   const r = img.res, tip = $("#tip");
-  const L = r && p.y < r.H && p.x >= 0 && p.x < r.W ? r.lab[Math.floor(p.y) * r.W + Math.floor(p.x)] : 0;
+  const L = r && !state.tool && p.y < r.H && p.x >= 0 && p.x < r.W ? r.lab[Math.floor(p.y) * r.W + Math.floor(p.x)] : 0;
   const o = L && r.byL[L];
   if (state.hover !== (o ? L : 0)) { state.hover = o ? L : 0; drawUI(); }
   if (!o) { tip.hidden = true; return; }
-  const um = r.um, a2 = um ? um * um : 1, u = um ? "µm" : "px";
-  tip.innerHTML = `#${o.id} · ${o.excluded ? "excluded" : o.type === "aggregate" ? `aggregate ≈ ${o.cells} cells` : o.morph}${o.border ? " · edge" : ""}<br>` +
-    `area ${f1(o.area * a2, um ? 3 : 0)} ${u}²<br>length ${f1(o.major * (um || 1), um ? 2 : 1)} ${u} · width ${f1(o.minor * (um || 1), um ? 2 : 1)} ${u}<br>` +
-    `aspect ${f1(o.ar, 2)} · circularity ${f1(o.circ, 2)}<br><span style="color:#9aa">${o.excluded ? "click to restore" : "click to exclude"}</span>`;
-  const st = $("#stage").getBoundingClientRect(); tip.hidden = false;
-  let tx = e.clientX - st.left + $("#stage").scrollLeft + 14, ty = e.clientY - st.top + $("#stage").scrollTop + 14;
-  if (tx + tip.offsetWidth > $("#stage").scrollLeft + st.width - 8) tx -= tip.offsetWidth + 28;
+  const a2 = r.um ? r.um * r.um : null;
+  tip.innerHTML = `Patch #${o.id}${o.excluded ? " · excluded" : ""}<br>area ${a2 ? f1(o.area * a2, 2) + " µm²" : o.area + " px²"}<br><span style="color:#9aa">${o.excluded ? "click to count again" : "click to exclude"}</span>`;
+  const stage = $("#stage"), st = stage.getBoundingClientRect(); tip.hidden = false;
+  let tx = e.clientX - st.left + stage.scrollLeft + 14, ty = e.clientY - st.top + stage.scrollTop + 14;
+  if (tx + tip.offsetWidth > stage.scrollLeft + st.width - 8) tx -= tip.offsetWidth + 28;
   tip.style.left = tx + "px"; tip.style.top = ty + "px";
 });
 cUI.addEventListener("pointerleave", () => { $("#tip").hidden = true; if (state.hover) { state.hover = 0; drawUI(); } });
 cUI.addEventListener("pointerup", () => {
+  const img = state.images[state.cur];
+  if (state.rect && state.rect.drag) {
+    const rc = state.rect.r; state.rect = null;
+    if (Math.abs(rc.x1 - rc.x0) > 4 && Math.abs(rc.y1 - rc.y0) > 4) { img.rects.push(rc); invalidate(img); toast("Area excluded. Click “Clear areas” to undo."); }
+    drawUI(); return;
+  }
   if (!state.cal || !state.cal.drag) return; state.cal.drag = false;
   const { a, b } = state.cal, len = Math.hypot(b.x - a.x, b.y - a.y);
   state.cal.len = len; $("#calApply").disabled = len < 5;
   $("#calHint").textContent = len < 5 ? "Line too short. Drag along the whole scale bar." : `Measured ${len.toFixed(1)} px. Enter the length printed on the bar, then Apply.`;
 });
-$("#calBtn").onclick = () => {
-  if (!state.images[state.cur]) return;
-  const on = !(state.cal && state.cal.mode);
-  state.cal = on ? { mode: "draw" } : null; $("#calBox").hidden = !on; $("#calBtn").classList.toggle("on", on); $("#calApply").disabled = true;
-  $("#calHint").textContent = "Drag along the scale bar in the image. The line snaps horizontal; hold Shift to draw at an angle.";
-  drawUI();
-};
-$("#calCancel").onclick = () => { state.cal = null; $("#calBox").hidden = true; $("#calBtn").classList.remove("on"); drawUI(); };
+$("#rectBtn").onclick = () => setTool(state.tool === "rect" ? null : "rect");
+$("#rectClear").onclick = () => { const img = state.images[state.cur]; if (!img || !img.rects.length) return; img.rects = []; invalidate(img); toast("Excluded areas cleared."); };
+$("#calBtn").onclick = () => setTool(state.tool === "cal" ? null : "cal");
+$("#calCancel").onclick = () => setTool(null);
 $("#calApply").onclick = () => {
   const img = state.images[state.cur]; const v = parseFloat($("#barLen").value) * parseFloat($("#barUnit").value);
   if (!img || !state.cal || !(v > 0) || !(state.cal.len > 0)) return;
   img.nm = v / state.cal.len; img.calSrc = `Scale bar: ${$("#barLen").value} ${$("#barUnit").selectedOptions[0].text} = ${state.cal.len.toFixed(1)} px`;
-  $("#calCancel").onclick(); syncImageFields(); invalidate(img); toast(`Calibrated: ${img.nm.toFixed(2)} nm/px`);
+  setTool(null); syncImageFields(); invalidate(img); toast(`Calibrated: ${img.nm.toFixed(2)} nm/px`);
 };
 $("#nm").onchange = () => { const img = state.images[state.cur]; if (!img) return; const v = parseFloat($("#nm").value);
-  img.nm = v > 0 ? v : null; img.calSrc = v > 0 ? "Entered by hand" : "Not calibrated. Measure the scale bar or type the pixel size."; syncImageFields(); invalidate(img); };
+  img.nm = v > 0 ? v : null; img.calSrc = v > 0 ? "Entered by hand" : "Not calibrated"; syncImageFields(); invalidate(img); };
 $("#calAll").onclick = () => { const img = state.images[state.cur]; if (!img || !img.nm) { toast("Calibrate this image first."); return; }
   let n = 0; for (const o of state.images) if (o !== img) { o.nm = img.nm; o.calSrc = "Copied from " + img.name; o.ver = -1; n++; } enqueueAll(); toast(`Pixel size applied to ${n} other image(s).`); };
-$("#excl").onchange = () => { const img = state.images[state.cur]; if (!img) return; img.excl = Math.max(0, Math.min(img.h - 8, parseInt($("#excl").value) || 0)); img.excluded = []; syncImageFields(); invalidate(img); };
-$("#exclAuto").onclick = () => { const img = state.images[state.cur]; if (!img) return; img.excl = detectBar(img.gray, img.w, img.h); syncImageFields(); invalidate(img); toast(img.excl ? `Data bar: ${img.excl} px` : "No data bar found."); };
-$("#group").oninput = () => { const img = state.images[state.cur]; if (!img) return; img.group = $("#group").value.trim(); renderTables(); renderGroupChart(); renderStrip(); };
-$("#removeBtn").onclick = () => { if (state.cur < 0) return; state.images.splice(state.cur, 1); select(Math.min(state.cur, state.images.length - 1)); renderStrip(); renderTables(); renderGroupChart(); };
+$("#excl").onchange = () => { const img = state.images[state.cur]; if (!img) return; img.excl = Math.max(0, Math.min(img.h - 8, parseInt($("#excl").value) || 0)); img.barSrc = "set by hand"; syncImageFields(); invalidate(img); };
+$("#exclAuto").onclick = async () => { const img = state.images[state.cur]; if (!img) return; await ensureData(img); img.excl = detectBar(img.data.gray, img.w, img.h); img.barSrc = img.excl ? "detected" : "none found"; syncImageFields(); invalidate(img); };
+function recordChanged() { sortImages(); renderStrip(); renderResults(); renderCharts(); }
+$("#fSample").onchange = () => { const img = state.images[state.cur]; if (!img) return; const v = $("#fSample").value.trim().toUpperCase(); const m = v.match(/^([A-E])\s*0*(\d{1,3})$/);
+  img.sample = m ? m[1] + pad2(+m[2]) : v; if (m) img.group = m[1]; syncImageFields(); recordChanged(); };
+$("#fGroup").onchange = () => { const img = state.images[state.cur]; if (img) { img.group = $("#fGroup").value; recordChanged(); } };
+$("#fThird").onchange = () => { const img = state.images[state.cur]; if (img) { img.third = $("#fThird").value; recordChanged(); } };
+$("#fPoint").onchange = () => { const img = state.images[state.cur]; if (img) { img.point = $("#fPoint").value; recordChanged(); } };
+$("#fKind").onchange = () => { const img = state.images[state.cur]; if (img) { img.kind = $("#fKind").value; syncImageFields(); renderScore(); recordChanged(); } };
+$("#fTubule").onchange = () => { const img = state.images[state.cur]; if (img) { img.tubule = $("#fTubule").value; recordChanged(); } };
+$("#removeBtn").onclick = () => { if (state.cur < 0) return; const [gone] = state.images.splice(state.cur, 1); lru = lru.filter((x) => x !== gone); select(Math.min(state.cur, state.images.length - 1)); renderCharts(); };
 $("#viewSeg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.view = b.dataset.view;
   document.querySelectorAll("#viewSeg button").forEach((x) => x.classList.toggle("on", x === b)); renderViewer(); };
 $("#zoomBtn").onclick = () => { state.native = !state.native; $("#zoomBtn").textContent = state.native ? "Fit to width" : "Actual pixels"; renderViewer(); };
 $("#file").onchange = (e) => { if (e.target.files.length) addFiles(e.target.files); e.target.value = ""; };
 $("#sampleBtn").onclick = loadSamples;
+$("#tabs").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; state.tab = b.dataset.tab; document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x === b)); renderResults(); };
+$("#copyTab").onclick = () => { const T = TABLES[state.tab](); copyText(tsv(T.head, T.rows), "Table"); };
+$("#copyMethods").onclick = () => copyText(methodsText(), "Methods text");
 const stageEl = $("#stage");
 stageEl.addEventListener("dragover", (e) => { e.preventDefault(); $("#drop").hidden = false; });
 stageEl.addEventListener("dragleave", (e) => { if (!stageEl.contains(e.relatedTarget)) $("#drop").hidden = true; });
 stageEl.addEventListener("drop", (e) => { e.preventDefault(); $("#drop").hidden = true; if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+$("#fGroup").innerHTML = '<option value="">—</option>' + Object.entries(GROUPS).map(([k, v]) => `<option value="${k}">${k} · ${v}</option>`).join("");
 
 let tmr = 0;
-function bindSetting(id, key, parse, evt = "input") {
-  $(id).addEventListener(evt, () => { S[key] = parse($(id)); syncSettings(); clearTimeout(tmr);
-    tmr = setTimeout(() => { settingsVer++; enqueueAll(); renderStrip(); renderTables(); }, 220); });
-}
+function settingsChanged() { syncSettings(); clearTimeout(tmr); tmr = setTimeout(() => { settingsVer++; enqueueAll(); renderStrip(); }, 250); }
+function bindSetting(id, key, parse, evt = "input") { $(id).addEventListener(evt, () => { S[key] = parse($(id)); settingsChanged(); }); }
+bindSetting("#sMode", "mode", (e) => e.value, "change");
+bindSetting("#sFix", "fix", (e) => +e.value);
+bindSetting("#sAbs", "abs", (e) => +e.value);
+bindSetting("#sFlat", "flat", (e) => e.checked, "change");
+bindSetting("#sOff", "off", (e) => +e.value);
 bindSetting("#sPol", "pol", (e) => e.value, "change");
 bindSetting("#sBg", "bg", (e) => +e.value);
 bindSetting("#sSig", "sig", (e) => +e.value);
-bindSetting("#sOff", "off", (e) => +e.value);
 bindSetting("#sOpen", "open", (e) => +e.value, "change");
 bindSetting("#sMin", "min", (e) => Math.max(0, +e.value || 0), "change");
 bindSetting("#sFill", "fill", (e) => e.checked, "change");
-bindSetting("#sSplit", "split", (e) => e.checked, "change");
-bindSetting("#sH", "h", (e) => +e.value);
-bindSetting("#sEdge", "edge", (e) => e.checked, "change");
-bindSetting("#sRef", "ref", (e) => (parseFloat(e.value) > 0 ? String(parseFloat(e.value)) : ""), "change");
-
-$("#copyImgs").onclick = () => copyText(tsv(IMG_COLS.map((c) => c[0]), state.images.map(imgRow)), "Image table");
-$("#copyGroups").onclick = () => copyText(tsv(GRP_COLS, groupRows()), "Group summary");
-$("#copyObjs").onclick = () => {
-  const img = state.images[state.cur], r = img && img.res; if (!r) return;
-  const um = r.um, a2 = um ? um * um : 1, l = um || 1, u = um ? "µm" : "px";
-  copyText(tsv(["Object", `X (${u})`, `Y (${u})`, `Area (${u}²)`, `Length (${u})`, `Width (${u})`, "Aspect ratio", "Circularity", "Class", "Morphotype", "Est. cells", "Touches edge", "Excluded"],
-    r.objs.map((o) => [o.id, f1(o.cx * l, 3), f1(o.cy * l, 3), f1(o.area * a2, 4), f1(o.major * l, 3), f1(o.minor * l, 3), f1(o.ar, 3), f1(o.circ, 3), o.type, o.morph, o.cells, o.border ? "yes" : "no", o.excluded ? "yes" : "no"])), `${r.objs.length} objects`);
-};
-$("#copyMethods").onclick = () => copyText(methodsText(), "Methods text");
+$("#sComb").onchange = () => { S.comb = $("#sComb").value; renderResults(); renderCharts(); };
+document.querySelectorAll(".fromImg").forEach((b) => (b.onclick = () => { const img = state.images[state.cur]; if (!img || !img.sum) return;
+  const k = S.mode === "abs" ? "abs" : "fix"; S[k] = Math.max(k === "abs" ? 1 : 5, Math.min(k === "abs" ? 254 : 160, Math.round(img.sum.otsuRaw)));
+  settingsChanged(); toast(`Threshold set to ${S[k]} for all images. Check a clean field next.`); }));
+$("#resetSeg").onclick = () => { Object.assign(S, DEFAULTS); settingsChanged(); };
 
 let toastT = 0;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 3200); }
 function busy(on, msg) { const b = $("#busy"); b.hidden = !on; if (msg) b.textContent = msg; }
-let rz = 0; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderCharts(); renderGroupChart(); drawUI(); }, 120); });
+let rz = 0; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { renderCharts(); drawUI(); }, 120); });
 const mq = window.matchMedia("(prefers-color-scheme: dark)");
-(mq.addEventListener ? mq.addEventListener("change", () => { renderCharts(); renderGroupChart(); }) : null);
-new MutationObserver(() => { renderCharts(); renderGroupChart(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+if (mq.addEventListener) mq.addEventListener("change", renderCharts);
+new MutationObserver(renderCharts).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
 syncSettings();
 loadSamples();
